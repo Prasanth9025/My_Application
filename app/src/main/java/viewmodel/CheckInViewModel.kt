@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// Enums for the choices
+// Enums
 enum class SleepQuality { POOR, MODERATE, GOOD }
 enum class StressLevel { LOW, MEDIUM, HIGH }
 enum class EnergyLevel { LOW, NORMAL, HIGH }
@@ -20,29 +20,23 @@ enum class Digestion { LIGHT, NORMAL, HEAVY, BLOATED }
 enum class Appetite { LOW, NORMAL, STRONG }
 
 data class CheckInState(
-    // Step 1
+    // Sliders (Always have a value)
     val sleepDuration: Float = 7.0f,
-    // Step 2
-    val sleepQuality: SleepQuality = SleepQuality.GOOD,
-    // Step 3
-    val stressLevel: StressLevel = StressLevel.MEDIUM,
-    // Step 4 & 5
-    val morningEnergy: EnergyLevel = EnergyLevel.NORMAL,
-    val eveningEnergy: EnergyLevel = EnergyLevel.NORMAL,
-    // Step 6 (Body Sensations)
+    val hydration: Int = 2,
+
+    // Choices (Now Nullable - Starts Empty)
+    val sleepQuality: SleepQuality? = null,
+    val stressLevel: StressLevel? = null,
+    val morningEnergy: EnergyLevel? = null,
+    val eveningEnergy: EnergyLevel? = null,
+    val bowelMovement: BowelMovement? = null,
+    val digestion: Digestion? = null,
+    val appetite: Appetite? = null,
+
+    // Lists and Strings
     val symptoms: List<String> = emptyList(),
-    // Step 7
-    val bowelMovement: BowelMovement = BowelMovement.REGULAR,
-    // Step 8
-    val hydration: Int = 2, // Liters
-    // Step 9
-    val mood: String = "Calm",
-    // Step 10
-    val physicalActivity: String = "Moderate",
-    // Step 11
-    val digestion: Digestion = Digestion.NORMAL,
-    // Step 12
-    val appetite: Appetite = Appetite.NORMAL
+    val mood: String? = null,
+    val physicalActivity: String? = null
 )
 
 class CheckInViewModel : ViewModel() {
@@ -54,7 +48,6 @@ class CheckInViewModel : ViewModel() {
     val prediction: StateFlow<PredictionResponse?> = _prediction.asStateFlow()
 
     // --- Update Functions ---
-
     fun updateSleepDuration(value: Float) { _uiState.update { it.copy(sleepDuration = value) } }
     fun updateSleepQuality(value: SleepQuality) { _uiState.update { it.copy(sleepQuality = value) } }
     fun updateStressLevel(value: StressLevel) { _uiState.update { it.copy(stressLevel = value) } }
@@ -76,25 +69,33 @@ class CheckInViewModel : ViewModel() {
     fun updateDigestion(value: Digestion) { _uiState.update { it.copy(digestion = value) } }
     fun updateAppetite(value: Appetite) { _uiState.update { it.copy(appetite = value) } }
 
-    // --- Submit ---
+    // --- REAL BACKEND SUBMIT FUNCTION ---
     fun submitData() {
         viewModelScope.launch {
             try {
-                // Mapping complex state to simple integers for API
+                println("DEBUG: Starting Real Network Request...")
+
+                // Use '?.' to safely access data. If null, default to 0 (First Option).
                 val request = PredictionRequest(
-                    sleep_quality = _uiState.value.sleepQuality.ordinal,
-                    stress_level = _uiState.value.stressLevel.ordinal,
-                    energy_level = _uiState.value.morningEnergy.ordinal,
-                    digestion = _uiState.value.digestion.ordinal,
-                    stool_type = _uiState.value.bowelMovement.ordinal,
-                    skin_condition = 0, // Default if not asked
+                    sleep_quality = _uiState.value.sleepQuality?.ordinal ?: 1,
+                    stress_level = _uiState.value.stressLevel?.ordinal ?: 1,
+                    energy_level = _uiState.value.morningEnergy?.ordinal ?: 1,
+                    digestion = _uiState.value.digestion?.ordinal ?: 1,
+                    stool_type = _uiState.value.bowelMovement?.ordinal ?: 0,
+                    skin_condition = 0,
                     gender = 1
                 )
+
+                println("DEBUG: Sending Data: $request")
+
                 val response = RetrofitClient.apiService.predictDosha(request)
+
+                println("DEBUG: Success! Server Responded: $response")
                 _prediction.value = response
+
             } catch (e: Exception) {
-                // Fallback for demo
-                _prediction.value = PredictionResponse("Kapha", 30, 20, 50, listOf("Stay active", "Eat warm food"))
+                println("DEBUG: Network Error Failed!")
+                e.printStackTrace()
             }
         }
     }

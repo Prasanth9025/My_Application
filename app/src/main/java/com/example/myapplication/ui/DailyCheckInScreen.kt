@@ -1,11 +1,11 @@
 package com.example.myapplication.ui
 
-import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -19,63 +19,21 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.lazy.grid.*
+import com.example.myapplication.viewmodel.*
 
-// --- COLORS (Fixed: Added all missing colors) ---
+// --- COLORS ---
 val RoyalBlue = Color(0xFF2563EB)
-val TextGray = Color(0xFF6B7280)       // Fixed: Added TextGray
-val SelectedLightBlue = Color(0xFFEFF6FF) // Fixed: Added SelectedLightBlue
-val BrightGreenButton = Color(0xFF00E676)
-val LightGreenText = Color(0xFF69F0AE)
-val GoldYellowButton = Color(0xFFFBC02D)
-val DarkOverlay = Color(0xFF212121)
+val TextGray = Color(0xFF6B7280)
+val SelectedLightBlue = Color(0xFFEFF6FF)
 
-// --- STATE MODELS ---
-data class CheckInState(
-    var sleepDuration: Float = 7f,
-    var sleepQuality: String? = null,
-    var stressLevel: String? = null,
-    var morningEnergy: String? = null,
-    var eveningEnergy: String? = null,
-    var symptoms: List<String> = emptyList(),
-    var bowelMovement: String? = null,
-    var hydration: Int = 2,
-    var mood: String? = null,
-    var physicalActivity: String? = null,
-    var digestion: String? = null,
-    var appetite: String? = null
-)
-
-@Composable
-fun DailyCheckInScreen(
-    onNavigateToDashboard: () -> Unit = {}
-) {
-    var currentView by remember { mutableStateOf("wizard") }
-    val checkInState = remember { mutableStateOf(CheckInState()) }
-
-    when (currentView) {
-        "wizard" -> CheckInWizard(
-            state = checkInState.value,
-            onStateChange = { checkInState.value = it },
-            onFinish = { currentView = "confirmation" }
-        )
-        "confirmation" -> ConfirmationView(
-            onDashboardClick = { currentView = "summary" }
-        )
-        "summary" -> SummaryView(
-            state = checkInState.value,
-            onViewForecast = onNavigateToDashboard
-        )
-    }
-}
-
-// --- 1. WIZARD VIEW ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CheckInWizard(
-    state: CheckInState,
-    onStateChange: (CheckInState) -> Unit,
-    onFinish: () -> Unit
+fun DailyCheckInScreen(
+    viewModel: CheckInViewModel,
+    onNavigateToSummary: () -> Unit
 ) {
+    val state by viewModel.uiState.collectAsState()
     var step by remember { mutableIntStateOf(1) }
     val totalSteps = 12
 
@@ -104,12 +62,12 @@ fun CheckInWizard(
         },
         bottomBar = {
             Button(
-                onClick = { if (step < totalSteps) step++ else onFinish() },
+                onClick = { if (step < totalSteps) step++ else onNavigateToSummary() },
                 modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(if (step == totalSteps) "Submit" else "Next", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(if (step == totalSteps) "Finish" else "Next", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         },
         containerColor = Color.White
@@ -118,168 +76,107 @@ fun CheckInWizard(
             modifier = Modifier.padding(innerPadding).padding(horizontal = 24.dp).fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-
             Text("Step $step of $totalSteps", color = Color.Gray, fontSize = 14.sp)
-            Spacer(Modifier.height(16.dp))
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = getQuestionText(step),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 32.sp
-            )
+            Text(getQuestionText(step), fontSize = 24.sp, fontWeight = FontWeight.Bold, lineHeight = 32.sp)
             Spacer(Modifier.height(32.dp))
 
             when (step) {
-                1 -> StepSlider(state.sleepDuration, 12f, "Hours") { onStateChange(state.copy(sleepDuration = it)) }
-                2 -> StepSimpleOptions(listOf("Good", "Moderate", "Poor"), state.sleepQuality) { onStateChange(state.copy(sleepQuality = it)) }
-                3 -> StepSimpleOptions(listOf("Low", "Medium", "High"), state.stressLevel) { onStateChange(state.copy(stressLevel = it)) }
-                4 -> StepHeroImage(listOf("Low", "Normal", "High"), state.morningEnergy, Color(0xFFFFCC80)) { onStateChange(state.copy(morningEnergy = it)) }
-                5 -> StepSimpleOptions(listOf("Low", "Normal", "High"), state.eveningEnergy) { onStateChange(state.copy(eveningEnergy = it)) }
-                6 -> StepGridSensations(state.symptoms) { item ->
-                    val newList = if (state.symptoms.contains(item)) state.symptoms - item else state.symptoms + item
-                    onStateChange(state.copy(symptoms = newList))
+                1 -> StepSlider(state.sleepDuration, 12f, "Hours") { viewModel.updateSleepDuration(it) }
+
+                // SAFE CALL (?.) prevents crash if value is null
+                2 -> StepSimpleOptions(
+                    listOf("Good", "Moderate", "Poor"),
+                    state.sleepQuality?.name?.toPrettyString()
+                ) { str ->
+                    val enumVal = when(str) { "Good" -> SleepQuality.GOOD; "Poor" -> SleepQuality.POOR; else -> SleepQuality.MODERATE }
+                    viewModel.updateSleepQuality(enumVal)
                 }
-                7 -> StepSimpleOptions(listOf("Regular", "Dry/Hard", "Loose", "Heavy"), state.bowelMovement, isHorizontal = true) { onStateChange(state.copy(bowelMovement = it)) }
-                8 -> StepSlider(state.hydration.toFloat(), 5f, "Liters") { onStateChange(state.copy(hydration = it.toInt())) }
-                9 -> StepRichList(getMoodOptions(), state.mood) { onStateChange(state.copy(mood = it)) }
-                10 -> StepRichList(getActivityOptions(), state.physicalActivity) { onStateChange(state.copy(physicalActivity = it)) }
-                11 -> StepSimpleOptions(listOf("Light", "Normal", "Heavy", "Bloated"), state.digestion, isHorizontal = true) { onStateChange(state.copy(digestion = it)) }
-                12 -> StepSimpleOptions(listOf("Low", "Normal", "Strong"), state.appetite, isHorizontal = true) { onStateChange(state.copy(appetite = it)) }
+
+                3 -> StepSimpleOptions(
+                    listOf("Low", "Medium", "High"),
+                    state.stressLevel?.name?.toPrettyString()
+                ) { str ->
+                    val enumVal = when(str) { "Low" -> StressLevel.LOW; "High" -> StressLevel.HIGH; else -> StressLevel.MEDIUM }
+                    viewModel.updateStressLevel(enumVal)
+                }
+
+                4 -> StepHeroImage(
+                    listOf("Low", "Normal", "High"),
+                    state.morningEnergy?.name?.toPrettyString(),
+                    Color(0xFFFFCC80)
+                ) { str ->
+                    val enumVal = when(str) { "Low" -> EnergyLevel.LOW; "High" -> EnergyLevel.HIGH; else -> EnergyLevel.NORMAL }
+                    viewModel.updateMorningEnergy(enumVal)
+                }
+
+                5 -> StepSimpleOptions(
+                    listOf("Low", "Normal", "High"),
+                    state.eveningEnergy?.name?.toPrettyString()
+                ) { str ->
+                    val enumVal = when(str) { "Low" -> EnergyLevel.LOW; "High" -> EnergyLevel.HIGH; else -> EnergyLevel.NORMAL }
+                    viewModel.updateEveningEnergy(enumVal)
+                }
+
+                6 -> StepGridSensations(state.symptoms) { viewModel.toggleSymptom(it) }
+
+                7 -> StepSimpleOptions(
+                    listOf("Regular", "Dry/Hard", "Loose", "Heavy"),
+                    if (state.bowelMovement != null) mapBowelToString(state.bowelMovement!!) else null,
+                    isHorizontal = true
+                ) { str -> viewModel.updateBowel(mapStringToBowel(str)) }
+
+                8 -> StepSlider(state.hydration.toFloat(), 5f, "Liters") { viewModel.updateHydration(it.toInt()) }
+
+                9 -> StepRichList(getMoodOptions(), state.mood) { viewModel.updateMood(it) }
+
+                10 -> StepRichList(getActivityOptions(), state.physicalActivity) { viewModel.updateActivity(it) }
+
+                11 -> StepSimpleOptions(
+                    listOf("Light", "Normal", "Heavy", "Bloated"),
+                    state.digestion?.name?.toPrettyString(),
+                    isHorizontal = true
+                ) { str ->
+                    val enumVal = when(str) { "Light" -> Digestion.LIGHT; "Heavy" -> Digestion.HEAVY; "Bloated" -> Digestion.BLOATED; else -> Digestion.NORMAL }
+                    viewModel.updateDigestion(enumVal)
+                }
+
+                12 -> StepSimpleOptions(
+                    listOf("Low", "Normal", "Strong"),
+                    state.appetite?.name?.toPrettyString(),
+                    isHorizontal = true
+                ) { str ->
+                    val enumVal = when(str) { "Low" -> Appetite.LOW; "Strong" -> Appetite.STRONG; else -> Appetite.NORMAL }
+                    viewModel.updateAppetite(enumVal)
+                }
             }
             Spacer(Modifier.height(80.dp))
         }
     }
 }
 
-// --- 2. CONFIRMATION VIEW (Matches Image Format) ---
-@Composable
-fun ConfirmationView(onDashboardClick: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(DarkOverlay), contentAlignment = Alignment.Center) {
-        Card(
-            modifier = Modifier.padding(24.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
-            Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Daily Check-in", fontSize = 12.sp, color = Color.Gray)
-                Spacer(Modifier.height(8.dp))
-                Text("Daily Check-in Complete!", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Spacer(Modifier.height(24.dp))
-
-                // Matches the visual style of your image (3 panels with checkmark)
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(140.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Left Panel (Decoration)
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(Color(0xFF78909C)))
-
-                    // Center Panel (Checkmark)
-                    Box(
-                        modifier = Modifier.weight(2f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(Color(0xFFFFF3E0)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Large Checkmark
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color(0xFF81C784), // Soft Green check
-                            modifier = Modifier.size(80.dp)
-                        )
-                        // Simple overlay to simulate the mountain/tree graphic in code
-                        Icon(
-                            Icons.Default.Landscape,
-                            contentDescription = null,
-                            tint = Color(0xFF455A64).copy(alpha=0.3f),
-                            modifier = Modifier.size(100.dp).align(Alignment.BottomCenter)
-                        )
-                    }
-
-                    // Right Panel (Decoration)
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(Color(0xFF78909C)))
-                }
-
-                Spacer(Modifier.height(32.dp))
-
-                // Yellow Button
-                Button(
-                    onClick = onDashboardClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = GoldYellowButton),
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Go to Dashboard", color = Color.Black, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
+// --- HELPER EXTENSION ---
+// Makes "GOOD" -> "Good", safely handles nulls
+fun String.toPrettyString(): String {
+    return this.lowercase().replaceFirstChar { it.uppercase() }
 }
 
-// --- 3. SUMMARY VIEW (Matches Image Format) ---
-@OptIn(ExperimentalMaterial3Api::class) // Fixed: Added OptIn
-@Composable
-fun SummaryView(state: CheckInState, onViewForecast: () -> Unit) {
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Daily Check-in", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", modifier = Modifier.padding(start = 16.dp))
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
-            )
-        },
-        bottomBar = {
-            Button(
-                onClick = onViewForecast,
-                colors = ButtonDefaults.buttonColors(containerColor = BrightGreenButton),
-                modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("View Daily Forecast", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        },
-        containerColor = Color.White
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(horizontal = 24.dp)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-        ) {
-            Text("Summary for Today", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Spacer(Modifier.height(24.dp))
-
-            // Renamed function to avoid conflict
-            WizardSummaryItem("Sleep Duration", "${state.sleepDuration.toInt()} hours")
-            WizardSummaryItem("Sleep Quality", state.sleepQuality ?: "-")
-            WizardSummaryItem("Stress level", state.stressLevel ?: "-")
-            WizardSummaryItem("Morning Energy", state.morningEnergy ?: "-")
-            WizardSummaryItem("Evening Energy", state.eveningEnergy ?: "-")
-            WizardSummaryItem("Body Sensation", state.symptoms.joinToString(", ").ifEmpty { "None" })
-
-            Spacer(Modifier.height(80.dp))
-        }
-    }
+// --- MAPPERS ---
+fun mapBowelToString(b: BowelMovement): String = when(b) {
+    BowelMovement.REGULAR -> "Regular"
+    BowelMovement.DRY_HARD -> "Dry/Hard"
+    BowelMovement.LOOSE -> "Loose"
+    BowelMovement.HEAVY -> "Heavy"
 }
 
-// Unique name to prevent conflict
-@Composable
-fun WizardSummaryItem(label: String, value: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = LightGreenText, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Text(value, fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Normal)
-    }
-    HorizontalDivider(color = Color(0xFFF5F5F5))
+fun mapStringToBowel(s: String): BowelMovement = when(s) {
+    "Dry/Hard" -> BowelMovement.DRY_HARD
+    "Loose" -> BowelMovement.LOOSE
+    "Heavy" -> BowelMovement.HEAVY
+    else -> BowelMovement.REGULAR
 }
 
-// --- HELPER COMPONENTS ---
+// --- UI COMPONENTS ---
 @Composable
 fun StepSlider(value: Float, max: Float, unit: String, onChange: (Float) -> Unit) {
     Column {
@@ -287,11 +184,7 @@ fun StepSlider(value: Float, max: Float, unit: String, onChange: (Float) -> Unit
             Text(unit, color = TextGray, fontSize = 16.sp)
             Text("${value.toInt()}", fontSize = 32.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.height(16.dp))
-        Slider(
-            value = value, onValueChange = onChange, valueRange = 0f..max,
-            colors = SliderDefaults.colors(thumbColor = Color.Black, activeTrackColor = Color.Black, inactiveTrackColor = Color(0xFFEEEEEE))
-        )
+        Slider(value = value, onValueChange = onChange, valueRange = 0f..max)
     }
 }
 
@@ -299,9 +192,7 @@ fun StepSlider(value: Float, max: Float, unit: String, onChange: (Float) -> Unit
 fun StepSimpleOptions(options: List<String>, selected: String?, isHorizontal: Boolean = false, onSelect: (String) -> Unit) {
     if (isHorizontal) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            options.forEach { opt ->
-                Box(Modifier.weight(1f)) { OptionButton(opt, selected == opt) { onSelect(opt) } }
-            }
+            options.forEach { opt -> Box(Modifier.weight(1f)) { OptionButton(opt, selected == opt) { onSelect(opt) } } }
         }
     } else {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -319,8 +210,7 @@ fun OptionButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (isSelected) SelectedLightBlue else Color.White,
             contentColor = if (isSelected) RoyalBlue else Color.Black
-        ),
-        border = BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) RoyalBlue else Color(0xFFEEEEEE))
+        )
     ) {
         Text(text, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium)
     }
@@ -329,12 +219,7 @@ fun OptionButton(text: String, isSelected: Boolean, onClick: () -> Unit) {
 @Composable
 fun StepHeroImage(options: List<String>, selected: String?, placeholderColor: Color, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(12.dp)).background(placeholderColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.WbSunny, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
-        }
+        Box(modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(12.dp)).background(placeholderColor))
         StepSimpleOptions(options, selected, false, onSelect)
     }
 }
@@ -346,6 +231,7 @@ fun StepGridSensations(selectedItems: List<String>, onToggle: (String) -> Unit) 
         "Heaviness" to Icons.Default.FitnessCenter, "Cold Body" to Icons.Default.AcUnit,
         "Sweet Craving" to Icons.Default.Cake, "Spicy Craving" to Icons.Default.Whatshot
     )
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -382,7 +268,6 @@ fun StepRichList(options: List<Triple<String, String, Color>>, selected: String?
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                     .background(if (isSelected) SelectedLightBlue else Color(0xFFFAFAFA))
-                    .border(if (isSelected) 2.dp else 0.dp, if (isSelected) RoyalBlue else Color.Transparent, RoundedCornerShape(16.dp))
                     .clickable { onSelect(title) }
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
@@ -397,7 +282,7 @@ fun StepRichList(options: List<Triple<String, String, Color>>, selected: String?
     }
 }
 
-// --- DATA HELPERS ---
+// --- DATA HELPERS (Titles/Text) ---
 fun getStepTitle(step: Int) = when (step) {
     1 -> "Sleep hours"; 2 -> "Sleep Quality"; 3 -> "Stress level"; 4 -> "Morning Energy"
     5 -> "Evening Energy"; 6 -> "Body Sensations"; 7 -> "Bowel Movement"; 8 -> "Hydration"

@@ -55,21 +55,24 @@ fun CheckInSummaryScreen(
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = Color(0xFFF5F5F5))
 
+            // SAFE CALLS ADDED BELOW (?.name)
             SummaryRow("Sleep Duration", "${state.sleepDuration.toInt()} hours")
-            SummaryRow("Sleep Quality", formatEnum(state.sleepQuality.name))
-            SummaryRow("Stress Level", formatEnum(state.stressLevel.name))
-            SummaryRow("Morning Energy", formatEnum(state.morningEnergy.name))
-            SummaryRow("Evening Energy", formatEnum(state.eveningEnergy.name))
+            SummaryRow("Sleep Quality", formatEnum(state.sleepQuality?.name))
+            SummaryRow("Stress Level", formatEnum(state.stressLevel?.name))
+            SummaryRow("Morning Energy", formatEnum(state.morningEnergy?.name))
+            SummaryRow("Evening Energy", formatEnum(state.eveningEnergy?.name))
 
             val symptomsText = if (state.symptoms.isNotEmpty()) state.symptoms.joinToString(", ") else "None"
             SummaryRow("Body Sensation", symptomsText)
 
-            SummaryRow("Bowel Movement", formatEnum(state.bowelMovement.name))
+            SummaryRow("Bowel Movement", formatEnum(state.bowelMovement?.name))
             SummaryRow("Hydration", "${state.hydration} Liters")
-            SummaryRow("Digestion", formatEnum(state.digestion.name))
-            SummaryRow("Appetite", formatEnum(state.appetite.name))
-            SummaryRow("Mood", state.mood)
-            SummaryRow("Activity", state.physicalActivity)
+            SummaryRow("Digestion", formatEnum(state.digestion?.name))
+            SummaryRow("Appetite", formatEnum(state.appetite?.name))
+
+            // Handle nullable Strings with fallback "?:"
+            SummaryRow("Mood", state.mood ?: "-")
+            SummaryRow("Activity", state.physicalActivity ?: "-")
 
             Spacer(modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.height(24.dp))
@@ -104,7 +107,9 @@ fun SummaryRow(label: String, value: String) {
     }
 }
 
-fun formatEnum(name: String): String {
+// Fixed to accept Nullable Strings
+fun formatEnum(name: String?): String {
+    if (name == null) return "-" // Return a dash if nothing was selected
     return name.lowercase(Locale.ROOT).replace("_", " ").replaceFirstChar {
         if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString()
     }

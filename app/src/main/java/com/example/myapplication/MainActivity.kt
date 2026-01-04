@@ -122,10 +122,9 @@ class MainActivity : ComponentActivity() {
                     // --- CHECK-IN FLOW ---
                     composable(BottomNavItem.CheckIn.route) {
                         DailyCheckInScreen(
-                            onNavigateToDashboard = {
-                                navController.navigate(BottomNavItem.Home.route) {
-                                    popUpTo(BottomNavItem.Home.route) { inclusive = true }
-                                }
+                            viewModel = viewModel,
+                            onNavigateToSummary = {
+                                navController.navigate("checkin_summary")
                             }
                         )
                     }
@@ -139,7 +138,12 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-                    composable("checkin_success") { CheckInSuccessScreen { navController.navigate("result") } }
+                    composable("checkin_success") {
+                        CheckInSuccessScreen {
+                            println("DEBUG: Button Clicked! Attempting to go to Result") // <--- Add this
+                            navController.navigate("result")
+                        }
+                    }
 
                     composable("result") {
                         val prediction by viewModel.prediction.collectAsState()
