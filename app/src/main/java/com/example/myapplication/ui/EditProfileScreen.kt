@@ -1,6 +1,7 @@
 package com.example.myapplication.ui
 
-import androidx.compose.foundation.Image // Import Image
+import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -8,38 +9,76 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale // Import ContentScale
-import androidx.compose.ui.res.painterResource // Import painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.R // Import R file
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.R
+import com.example.myapplication.viewmodel.EditProfileViewModel
+import com.example.myapplication.viewmodel.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileScreen(
     onBack: () -> Unit,
-    onSave: () -> Unit
+    onSaveSuccess: () -> Unit,
+    editViewModel: EditProfileViewModel = viewModel(),
+    profileViewModel: ProfileViewModel = viewModel() // 1. Inject ProfileViewModel
 ) {
-    // State variables
-    var name by remember { mutableStateOf("Priya Sharma") }
-    var email by remember { mutableStateOf("priya.sharma@example.com") }
-    var phone by remember { mutableStateOf("+1-555-123-4567") }
+    // 2. Observe Real Data from Backend
+    val userProfile by profileViewModel.userProfile.collectAsState()
+
+    // 3. Local State for Editing
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
     var dob by remember { mutableStateOf("") }
     var country by remember { mutableStateOf("") }
 
-    // Colors from design
-    val inputBgColor = Color(0xFFEFF5F0) // Light Mint background for inputs
-    val buttonColor = Color(0xFF00E676)   // Bright Green
-    val handleColor = Color(0xFF6B9B8A)   // Muted Green for @handle
+    // 4. Pre-fill fields when data loads
+    LaunchedEffect(userProfile) {
+        if (userProfile.name != "Loading...") {
+            name = userProfile.name
+            email = userProfile.email
+            phone = userProfile.phone ?: ""
+            gender = userProfile.gender ?: ""
+            dob = userProfile.dob ?: ""
+            country = userProfile.country ?: ""
+        }
+    }
+
+    // 5. Backend Status Handling
+    val updateStatus by editViewModel.updateStatus.collectAsState()
+    val isLoading by editViewModel.isLoading.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(updateStatus) {
+        if (updateStatus == "Success") {
+            Toast.makeText(context, "Profile Updated!", Toast.LENGTH_SHORT).show()
+            editViewModel.resetStatus()
+            profileViewModel.fetchProfileData() // Refresh the profile data
+            onSaveSuccess()
+        } else if (updateStatus != null) {
+            Toast.makeText(context, updateStatus, Toast.LENGTH_LONG).show()
+            editViewModel.resetStatus()
+        }
+    }
+
+    // Figma Colors
+    val inputBgColor = Color(0xFFEFF5F0)
+    val buttonColor = Color(0xFF00E676)
+    val handleColor = Color(0xFF6B9B8A)
 
     Scaffold(
         topBar = {
@@ -47,7 +86,7 @@ fun EditProfileScreen(
                 title = { Text("Edit Profile", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.White)
@@ -64,67 +103,83 @@ fun EditProfileScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 1. Profile Picture (Image instead of Icon)
+            // --- PROFILE HEADER ---
             Box(
                 modifier = Modifier
-                    .size(110.dp) // Size matches screenshot
+                    .size(100.dp)
                     .clip(CircleShape)
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.profile_pic), // Ensure file exists!
-                    contentDescription = "Profile Picture",
+                    painter = painterResource(id = R.drawable.profile_pic),
+                    contentDescription = "Profile",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
             }
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Name & Handle
-            Text("Priya Sharma", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("@priyasharma", fontSize = 14.sp, color = handleColor)
+            // Show "User" if name is empty during loading
+            Text(name.ifEmpty { "User" }, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("@${name.replace(" ", "").lowercase()}", fontSize = 14.sp, color = handleColor)
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // 2. Input Fields
-            CustomTextField(label = "Name", value = name, onValueChange = { name = it }, bgColor = inputBgColor)
+            // --- FORM FIELDS ---
+
+            FigmaInput("Name", name, { name = it }, inputBgColor)
             Spacer(modifier = Modifier.height(16.dp))
 
-            CustomTextField(label = "Email", value = email, onValueChange = { email = it }, bgColor = inputBgColor)
+            // Email is usually read-only, but we display it
+            FigmaInput("Email", email, { email=it }, inputBgColor)
             Spacer(modifier = Modifier.height(16.dp))
 
-            CustomTextField(label = "Phone", value = phone, onValueChange = { phone = it }, bgColor = inputBgColor)
+            FigmaInput("Phone", phone, { phone = it }, inputBgColor)
             Spacer(modifier = Modifier.height(16.dp))
 
-            CustomTextField(label = "Gender", value = gender, onValueChange = { gender = it }, bgColor = inputBgColor)
+            FigmaInput("Gender", gender, { gender = it }, inputBgColor)
             Spacer(modifier = Modifier.height(16.dp))
 
-            CustomTextField(label = "Date of Birth", value = dob, onValueChange = { dob = it }, bgColor = inputBgColor)
+            FigmaInput("Date of Birth", dob, { dob = it }, inputBgColor)
             Spacer(modifier = Modifier.height(16.dp))
 
-            CustomTextField(label = "Country", value = country, onValueChange = { country = it }, bgColor = inputBgColor)
+            FigmaInput("Country", country, { country = it }, inputBgColor)
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // 3. Save Button
+            // --- SAVE BUTTON ---
             Button(
-                onClick = onSave,
+                onClick = {
+                    // 6. SEND ALL DATA TO VIEWMODEL
+                    editViewModel.updateProfile(
+                        name = name,
+                        phone = phone,
+                        gender = gender,
+                        dob = dob,
+                        country = country,
+                        password = null // Password not changed here
+                    )
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(8.dp),
+                enabled = !isLoading
             ) {
-                Text("Save Changes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Save Changes", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+// --- HELPER COMPONENT ---
 @Composable
-fun CustomTextField(
+fun FigmaInput(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
@@ -133,22 +188,22 @@ fun CustomTextField(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
-            fontSize = 15.sp,
+            fontSize = 14.sp,
             color = Color.Black,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
-        Spacer(modifier = Modifier.height(8.dp))
         TextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp)), // Rounded corners
+                .clip(RoundedCornerShape(12.dp)),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = bgColor,
                 unfocusedContainerColor = bgColor,
                 disabledContainerColor = bgColor,
-                focusedIndicatorColor = Color.Transparent, // No underline
+                focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
                 cursorColor = Color.Black
             ),

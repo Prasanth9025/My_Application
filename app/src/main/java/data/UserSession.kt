@@ -4,41 +4,43 @@ import android.content.Context
 import android.content.SharedPreferences
 
 object UserSession {
-    private const val PREF_NAME = "user_prefs"
+    private const val PREF_NAME = "user_session"
     private const val KEY_USER_ID = "user_id"
     private const val KEY_USER_NAME = "user_name"
+    private const val KEY_IS_LOGGED_IN = "is_logged_in"
 
-    private lateinit var preferences: SharedPreferences
+    private lateinit var prefs: SharedPreferences
 
-    // Initialize this in MainActivity
+    // Call this once in your Application class or MainActivity
     fun init(context: Context) {
-        preferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     }
 
-    // Save User Data (Login)
-    fun saveUser(id: Int, name: String) {
-        preferences.edit().apply {
-            putInt(KEY_USER_ID, id)
+    // --- SAVE USER ---
+    fun saveUser(userId: Int, name: String) {
+        prefs.edit().apply {
+            putInt(KEY_USER_ID, userId)
             putString(KEY_USER_NAME, name)
-            apply() // Save to disk
+            putBoolean(KEY_IS_LOGGED_IN, true)
+            apply() // Asynchronous save
         }
     }
 
-    // Check if Logged In
-    fun isLoggedIn(): Boolean {
-        return getUserId() != 0
-    }
-
+    // --- GET USER ---
     fun getUserId(): Int {
-        return preferences.getInt(KEY_USER_ID, 0) // Default 0 (Not logged in)
+        return prefs.getInt(KEY_USER_ID, -1) // Returns -1 if not found
     }
 
-    fun getUserName(): String {
-        return preferences.getString(KEY_USER_NAME, "User") ?: "User"
+    fun getUserName(): String? {
+        return prefs.getString(KEY_USER_NAME, "User")
     }
 
-    // Clear Data (Logout)
+    fun isLoggedIn(): Boolean {
+        return prefs.getBoolean(KEY_IS_LOGGED_IN, false)
+    }
+
+    // --- LOGOUT ---
     fun clearSession() {
-        preferences.edit().clear().apply()
+        prefs.edit().clear().apply()
     }
 }

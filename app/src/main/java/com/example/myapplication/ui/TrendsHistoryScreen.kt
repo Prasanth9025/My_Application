@@ -4,11 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items // Import for List items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,10 +19,26 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.HistoryViewModel
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrendsHistoryScreen(onBack: () -> Unit) {
+fun TrendsHistoryScreen(
+    onBack: () -> Unit,
+    viewModel: HistoryViewModel = viewModel() // Inject ViewModel
+) {
+    // 1. Observe Real Data
+    val historyList by viewModel.historyList.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+
+    // 2. Fetch Data when screen opens
+    LaunchedEffect(Unit) {
+        viewModel.fetchHistory()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -35,53 +52,96 @@ fun TrendsHistoryScreen(onBack: () -> Unit) {
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
-                Text("Weekly Overview", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Graph Section
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
+            if (isLoading) {
+                // Show Loading Spinner
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Box(modifier = Modifier.padding(16.dp)) {
-                        WaveGraph(
-                            modifier = Modifier.fillMaxSize(),
-                            color = Color(0xFF5D8F78)
-                        )
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text("Weekly Overview", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Graph Section (Visual Only for now)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
+                        ) {
+                            Box(modifier = Modifier.padding(16.dp)) {
+                                WaveGraph(
+                                    modifier = Modifier.fillMaxSize(),
+                                    color = Color(0xFF5D8F78)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Text("Past Logs", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
+
+                    // 3. REAL LIST ITEMS
+                    if (historyList.isEmpty()) {
+                        item {
+                            Text(
+                                "No history found yet.",
+                                color = Color.Gray,
+                                modifier = Modifier.padding(top = 20.dp)
+                            )
+                        }
+                    } else {
+                        items(historyList) { item ->
+                            HistoryListItem(
+                                dosha = item.predictedDosha, // Correct (CamelCase)
+                                dateString = item.createdAt  // Correct (CamelCase)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+
+                    // Add bottom spacing so last item isn't cut off
+                    item { Spacer(modifier = Modifier.height(50.dp)) }
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-                Text("Past Logs", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // Dummy List Items
-            items(5) { index ->
-                HistoryListItem(date = "Dec ${25 - index}", score = "${70 + index}%")
-                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }
 }
 
 @Composable
-fun HistoryListItem(date: String, score: String) {
+fun HistoryListItem(dosha: String, dateString: String) {
+    // Format Date: "2024-05-10 14:00:00" -> "10 May, 2024"
+    val formattedDate = try {
+        val input = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val output = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
+        val date = input.parse(dateString)
+        output.format(date ?: "")
+    } catch (e: Exception) {
+        dateString // Fallback if parsing fails
+    }
+
+    // Color code based on Dosha
+    val cardColor = when (dosha) {
+        "Vata" -> Color(0xFFE3F2FD) // Light Blue
+        "Pitta" -> Color(0xFFFFEBEE) // Light Red
+        "Kapha" -> Color(0xFFE8F5E9) // Light Green
+        else -> Color(0xFFF5F5F5)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
             modifier = Modifier
@@ -90,8 +150,20 @@ fun HistoryListItem(date: String, score: String) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(date, fontSize = 16.sp, color = Color.Gray)
-            Text(score, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Column {
+                Text(text = "Dosha", fontSize = 12.sp, color = Color.Gray)
+                Text(
+                    text = dosha, // Shows "Vata", "Pitta", etc.
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+            Text(
+                text = formattedDate,
+                fontSize = 14.sp,
+                color = Color.DarkGray
+            )
         }
     }
 }

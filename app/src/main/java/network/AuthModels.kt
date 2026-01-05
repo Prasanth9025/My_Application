@@ -1,5 +1,7 @@
 package com.example.myapplication.network
 
+import com.google.gson.annotations.SerializedName
+
 // --- LOGIN ---
 data class LoginRequest(
     val email: String,
@@ -9,7 +11,7 @@ data class LoginRequest(
 data class LoginResponse(
     val status: String,
     val message: String,
-    val user_id: Int?, // Nullable because it's only present on success
+    @SerializedName("user_id") val userId: Int?, // Mapped JSON "user_id" to Kotlin "userId"
     val name: String?
 )
 
@@ -29,6 +31,32 @@ data class RegisterResponse(
 // --- HISTORY ---
 data class HistoryItem(
     val id: Int,
-    val predicted_dosha: String,
-    val created_at: String
+    @SerializedName("predicted_dosha") val predictedDosha: String,
+    @SerializedName("created_at") val createdAt: String
+)
+
+// --- UPDATE PROFILE ---
+data class UpdateProfileRequest(
+    @SerializedName("user_id") val userId: Int,
+    val name: String,
+    val phone: String,
+    val gender: String,
+    val dob: String,
+    val country: String,
+    val password: String? = null // Good use of default null for optional fields
+)
+
+data class UpdateProfileResponse(
+    val status: String,
+    val message: String
+)
+
+// --- USER PROFILE ---
+data class UserProfile(
+    val name: String,
+    val email: String,
+    val phone: String?,
+    val gender: String?,
+    val dob: String?,
+    val country: String?
 )

@@ -2,7 +2,7 @@ package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.UserSession // Ensure this imports your updated UserSession
+import com.example.myapplication.data.UserSession
 import com.example.myapplication.network.LoginRequest
 import com.example.myapplication.network.RegisterRequest
 import com.example.myapplication.network.RetrofitClient
@@ -26,11 +26,12 @@ class AuthViewModel : ViewModel() {
             try {
                 val response = RetrofitClient.apiService.loginUser(LoginRequest(email, pass))
 
-                if (response.status == "success" && response.user_id != null) {
+                // FIX 1: Use 'userId' (CamelCase)
+                // FIX 2: Use ignoreCase for safer status checking
+                if (response.status.equals("success", ignoreCase = true) && response.userId != null) {
 
-                    // --- FIX: USE saveUser() TO PERSIST LOGIN ---
-                    // This saves the ID to the phone's storage so the app remembers the user.
-                    UserSession.saveUser(response.user_id, response.name ?: "")
+                    // Save the ID and Name
+                    UserSession.saveUser(response.userId, response.name ?: "")
 
                     _loginState.value = AuthStatus.Success
                 } else {
@@ -56,7 +57,8 @@ class AuthViewModel : ViewModel() {
 
                 val response = RetrofitClient.apiService.registerUser(request)
 
-                if (response.status == "success") {
+                // FIX: Safer status check
+                if (response.status.equals("success", ignoreCase = true)) {
                     _registerState.value = AuthStatus.Success
                 } else {
                     _registerState.value = AuthStatus.Error(response.message)
