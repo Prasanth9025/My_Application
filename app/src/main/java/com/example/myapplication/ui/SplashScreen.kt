@@ -17,16 +17,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-// --- IMPORTANT: Ensure this import matches your package name ---
+// --- IMPORTS ---
 import com.example.myapplication.R
-// ---------------------------------------------------------------
+import com.example.myapplication.data.UserSession // Import UserSession
 
 @Composable
-fun SplashScreen(onSplashFinished: () -> Unit) {
+fun SplashScreen(
+    // CHANGED: Now accepts a String to tell MainActivity where to go
+    onSplashFinished: (String) -> Unit
+) {
     // This effect runs once when the screen opens
     LaunchedEffect(key1 = true) {
         delay(3000) // 3 seconds delay
-        onSplashFinished()
+
+        // --- AUTO-LOGIN LOGIC ---
+        if (UserSession.isLoggedIn()) {
+            // User is already logged in -> Go straight to Home
+            onSplashFinished("home")
+        } else {
+            // No user found -> Go to Welcome (Onboarding)
+            onSplashFinished("welcome")
+        }
     }
 
     Column(
@@ -34,7 +45,7 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // 1. Top Image Section (Forest)
+        // 1. Top Image Section
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -55,10 +66,8 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
                 .weight(0.35f) // Text area takes remaining 35%
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            // FIX: This pushes the text to the top of the white area
             verticalArrangement = Arrangement.Top
         ) {
-            // Adds a small gap between the image and the text
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(

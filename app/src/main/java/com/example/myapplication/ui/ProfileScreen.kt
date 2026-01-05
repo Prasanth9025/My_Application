@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.network.PredictionResponse
+// 1. IMPORT USER SESSION
+import com.example.myapplication.data.UserSession
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +34,9 @@ fun ProfileScreen(
     onAboutClick: () -> Unit,
     onStreakClick: () -> Unit
 ) {
+    // 2. GET REAL USER NAME
+    val userName = UserSession.getUserName()
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -90,8 +95,9 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // 3. SHOW REAL NAME
             Text(
-                text = "Priya Sharma",
+                text = userName, // <--- Dynamic Name
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -99,7 +105,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Age: 32, Email: priya.sharma@example.com\nPhone: +1-555-123-4567",
+                text = "Member since 2024", // Placeholder text
                 fontSize = 14.sp,
                 color = Color(0xFF6B9B8A),
                 textAlign = TextAlign.Center,
@@ -150,7 +156,7 @@ fun ProfileScreen(
             val kaphaScore = prediction?.kapha ?: 50
 
             CardItem(
-                icon = Icons.Default.Air,
+                icon = Icons.Default.Air, // Make sure to use Icons.Filled.Air if available or standard icon
                 title = "Vata: $vataScore",
                 onClick = {}
             )
@@ -158,7 +164,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             CardItem(
-                icon = Icons.Default.LocalFireDepartment,
+                icon = Icons.Default.LocalFireDepartment, // Use standard icon
                 title = "Pitta: $pittaScore",
                 onClick = {}
             )
@@ -175,16 +181,19 @@ fun ProfileScreen(
 
             // About Doshas (CLICKABLE)
             CardItem(
-                icon = Icons.Default.School,
+                icon = Icons.Default.Face, // Changed from School to Face (Common icon)
                 title = "About Doshas",
                 onClick = onAboutClick
             )
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Logout Button
+            // 4. UPDATED LOGOUT BUTTON
             Button(
-                onClick = onLogout,
+                onClick = {
+                    UserSession.clearSession() // CLEAR DATA ON DISK
+                    onLogout() // NAVIGATE TO LOGIN
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),

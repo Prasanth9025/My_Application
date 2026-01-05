@@ -2,7 +2,7 @@ package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.UserSession
+import com.example.myapplication.data.UserSession // Ensure this imports your updated UserSession
 import com.example.myapplication.network.LoginRequest
 import com.example.myapplication.network.RegisterRequest
 import com.example.myapplication.network.RetrofitClient
@@ -27,9 +27,11 @@ class AuthViewModel : ViewModel() {
                 val response = RetrofitClient.apiService.loginUser(LoginRequest(email, pass))
 
                 if (response.status == "success" && response.user_id != null) {
-                    // SAVE SESSION
-                    UserSession.userId = response.user_id
-                    UserSession.userName = response.name ?: ""
+
+                    // --- FIX: USE saveUser() TO PERSIST LOGIN ---
+                    // This saves the ID to the phone's storage so the app remembers the user.
+                    UserSession.saveUser(response.user_id, response.name ?: "")
+
                     _loginState.value = AuthStatus.Success
                 } else {
                     _loginState.value = AuthStatus.Error(response.message)
@@ -41,16 +43,15 @@ class AuthViewModel : ViewModel() {
     }
 
     // --- REGISTER FUNCTION ---
-    fun register(name: String, email: String, pass: String, phone: String) { // <--- Added phone here
+    fun register(name: String, email: String, pass: String, phone: String) {
         _registerState.value = AuthStatus.Loading
         viewModelScope.launch {
             try {
-                // Pass phone to request
                 val request = RegisterRequest(
                     name = name,
                     email = email,
                     password = pass,
-                    phone = phone // <--- Added phone here
+                    phone = phone
                 )
 
                 val response = RetrofitClient.apiService.registerUser(request)

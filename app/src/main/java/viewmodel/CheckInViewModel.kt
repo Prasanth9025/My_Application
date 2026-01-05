@@ -2,7 +2,7 @@ package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.* // Import your State and Enums
+import com.example.myapplication.data.* // Import your State, Enums, and UserSession
 import com.example.myapplication.network.PredictionRequest
 import com.example.myapplication.network.PredictionResponse
 import com.example.myapplication.network.RetrofitClient
@@ -50,7 +50,6 @@ class CheckInViewModel : ViewModel() {
 
                 val currentState = _uiState.value
 
-
                 // 1. Map Sleep (Enum -> Score 1-10)
                 val sleepScore = when (currentState.sleepQuality) {
                     SleepQuality.POOR -> 3
@@ -93,9 +92,10 @@ class CheckInViewModel : ViewModel() {
                     null -> 5
                 }
 
+                // --- FIX IS HERE: Use getUserId() ---
+                val userId = UserSession.getUserId()
+
                 // --- Create Request ---
-                val userId = UserSession.userId
-                // We convert our UI State (Enums) into the API Request (Ints)
                 val request = PredictionRequest(
                     user_id = userId,
                     sleep_quality = sleepScore,

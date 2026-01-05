@@ -23,19 +23,25 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.*
 import com.example.myapplication.viewmodel.CheckInViewModel
+import com.example.myapplication.data.UserSession
 
-// --- 1. Navigation Items Data Class ---
+// --- 1. Navigation Items (FIXED ICONS) ---
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object Home : BottomNavItem("home", "Home", Icons.Default.Home)
     object CheckIn : BottomNavItem("checkin_wizard", "Check-in", Icons.Default.CheckCircle)
-    object Guidance : BottomNavItem("guidance", "Guidance", Icons.Default.Spa)
-    object Insights : BottomNavItem("insights", "Insights", Icons.Default.BarChart)
+    // Changed Spa -> Face (Standard Icon)
+    object Guidance : BottomNavItem("guidance", "Guidance", Icons.Default.Face)
+    // Changed BarChart -> DateRange (Standard Icon)
+    object Insights : BottomNavItem("insights", "Insights", Icons.Default.DateRange)
     object Profile : BottomNavItem("profile", "Profile", Icons.Default.Person)
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Initialize Session Manager
+        UserSession.init(applicationContext)
+
         setContent {
             val navController = rememberNavController()
             val viewModel: CheckInViewModel = viewModel()
@@ -63,12 +69,20 @@ class MainActivity : ComponentActivity() {
             ) { innerPadding ->
                 NavHost(
                     navController = navController,
-                    // CHANGE THIS: Set to "splash" for normal app flow, or BottomNavItem.CheckIn.route to test check-in
-                    startDestination = "splash",
+                    startDestination = "splash", // Always start at Splash for Auto-Login check
                     modifier = Modifier.padding(innerPadding)
                 ) {
                     // --- ONBOARDING & AUTHENTICATION ---
-                    composable("splash") { SplashScreen { navController.navigate("welcome") { popUpTo("splash") { inclusive = true } } } }
+
+                    // 1. UPDATED SPLASH LOGIC (Auto-Login)
+                    composable("splash") {
+                        SplashScreen { nextRoute ->
+                            navController.navigate(nextRoute) {
+                                popUpTo("splash") { inclusive = true }
+                            }
+                        }
+                    }
+
                     composable("welcome") { WelcomeScreen { navController.navigate("wellness") } }
                     composable("wellness") { WellnessScreen { navController.navigate("features") } }
                     composable("features") { FeatureScreen { navController.navigate("login") } }
@@ -81,10 +95,11 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    // 2. UPDATED SIGNUP LOGIC (Named Arguments)
                     composable("signup") {
                         SignUpScreen(
-                            onSignUpSuccess={ navController.navigate("login") },
-                            onLoginClick={ navController.navigate("login") }
+                            onSignUpSuccess = { navController.navigate("login") },
+                            onLoginClick = { navController.navigate("login") }
                         )
                     }
 
@@ -138,11 +153,21 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
+
+                    // 3. UPDATED SUCCESS SCREEN LOGIC (Wait for Data)
                     composable("checkin_success") {
-                        CheckInSuccessScreen {
-                            println("DEBUG: Button Clicked! Attempting to go to Result") // <--- Add this
-                            navController.navigate("result")
-                        }
+                        // Observe the prediction to know when it is ready
+                        val prediction by viewModel.prediction.collectAsState()
+
+                        CheckInSuccessScreen(
+                            isReady = prediction != null, // Pass readiness state
+                            onGoToDashboard = {
+                                navController.navigate("result") {
+                                    // Remove success screen so they can't go back to it
+                                    popUpTo("checkin_success") { inclusive = true }
+                                }
+                            }
+                        )
                     }
 
                     composable("result") {

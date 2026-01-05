@@ -16,7 +16,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun CheckInSuccessScreen(onGoToDashboard: () -> Unit) {
+fun CheckInSuccessScreen(
+    isReady: Boolean,
+    onGoToDashboard: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
