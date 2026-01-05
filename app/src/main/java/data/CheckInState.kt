@@ -1,20 +1,31 @@
 package com.example.myapplication.data
 
-// This acts as the "Envelope" that holds all the user's answers
-data class CheckInState(
-    // Input Fields (Text)
-    val sleepHours: String = "",
-    val hydration: String = "",
+// --- 1. Define Enums Here ---
+enum class SleepQuality { POOR, MODERATE, GOOD }
+enum class StressLevel { LOW, MEDIUM, HIGH }
+enum class EnergyLevel { LOW, NORMAL, HIGH }
+enum class BowelMovement { REGULAR, DRY_HARD, LOOSE, HEAVY }
+enum class Digestion { LIGHT, NORMAL, HEAVY, BLOATED }
+enum class Appetite { LOW, NORMAL, STRONG }
 
-    // Selection Fields (Multiple Choice)
-    val sleepQuality: String = "",
-    val stressLevel: String = "",
-    val morningEnergy: String = "",
-    val eveningEnergy: String = "",
-    val bodySensation: String = "",
-    val bowelMovement: String = "",
-    val mood: String = "",
-    val physicalActivity: String = "",
-    val digestion: String = "",
-    val appetite: String = ""
+// --- 2. Update Data Class to use Enums ---
+data class CheckInState(
+    // Sliders (Always have a value)
+    val sleepDuration: Float = 7.0f,
+    val hydration: Int = 2,
+
+    // Selection Fields (Use Enums now, not Strings)
+    // We use nullable (?) so they can start as "unselected" (null)
+    val sleepQuality: SleepQuality? = null,
+    val stressLevel: StressLevel? = null,
+    val morningEnergy: EnergyLevel? = null,
+    val eveningEnergy: EnergyLevel? = null,
+    val bowelMovement: BowelMovement? = null,
+    val digestion: Digestion? = null,
+    val appetite: Appetite? = null,
+
+    // Text/List Fields
+    val symptoms: List<String> = emptyList(),
+    val mood: String? = null,
+    val physicalActivity: String? = null
 )

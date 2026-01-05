@@ -20,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.grid.*
-import com.example.myapplication.viewmodel.*
+
+// --- IMPORT YOUR DATA PACKAGE HERE ---
+import com.example.myapplication.data.* import com.example.myapplication.viewmodel.*
 
 // --- COLORS ---
 val RoyalBlue = Color(0xFF2563EB)
@@ -62,7 +64,15 @@ fun DailyCheckInScreen(
         },
         bottomBar = {
             Button(
-                onClick = { if (step < totalSteps) step++ else onNavigateToSummary() },
+                onClick = {
+                    if (step < totalSteps) {
+                        step++
+                    } else {
+                        // Submit data before navigating
+                        viewModel.submitData()
+                        onNavigateToSummary()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                 shape = RoundedCornerShape(12.dp)
@@ -84,7 +94,6 @@ fun DailyCheckInScreen(
             when (step) {
                 1 -> StepSlider(state.sleepDuration, 12f, "Hours") { viewModel.updateSleepDuration(it) }
 
-                // SAFE CALL (?.) prevents crash if value is null
                 2 -> StepSimpleOptions(
                     listOf("Good", "Moderate", "Poor"),
                     state.sleepQuality?.name?.toPrettyString()
@@ -156,7 +165,6 @@ fun DailyCheckInScreen(
 }
 
 // --- HELPER EXTENSION ---
-// Makes "GOOD" -> "Good", safely handles nulls
 fun String.toPrettyString(): String {
     return this.lowercase().replaceFirstChar { it.uppercase() }
 }
@@ -226,6 +234,7 @@ fun StepHeroImage(options: List<String>, selected: String?, placeholderColor: Co
 
 @Composable
 fun StepGridSensations(selectedItems: List<String>, onToggle: (String) -> Unit) {
+    // Note: Some of these Icons might require 'androidx.compose.material:material-icons-extended' dependency
     val items = listOf(
         "Dryness" to Icons.Default.WaterDrop, "Heat" to Icons.Default.LocalFireDepartment,
         "Heaviness" to Icons.Default.FitnessCenter, "Cold Body" to Icons.Default.AcUnit,
