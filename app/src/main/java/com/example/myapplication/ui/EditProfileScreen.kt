@@ -152,6 +152,7 @@ fun EditProfileScreen(
                     // 6. SEND ALL DATA TO VIEWMODEL
                     editViewModel.updateProfile(
                         name = name,
+                        email=email,
                         phone = phone,
                         gender = gender,
                         dob = dob,

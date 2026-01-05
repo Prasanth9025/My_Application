@@ -17,7 +17,7 @@ class EditProfileViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    fun updateProfile(name: String, phone: String, gender: String, dob: String, country: String, password: String?) {
+    fun updateProfile(name: String,email: String, phone: String, gender: String, dob: String, country: String, password: String?) {
         val userId = UserSession.getUserId()
         if (userId == -1) {
             _updateStatus.value = "Error: User not logged in"
@@ -31,6 +31,7 @@ class EditProfileViewModel : ViewModel() {
                 val request = UpdateProfileRequest(
                     userId = userId,
                     name = name,
+                    email = email,
                     phone = phone,
                     gender = gender,
                     dob = dob,

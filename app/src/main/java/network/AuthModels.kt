@@ -39,6 +39,7 @@ data class HistoryItem(
 data class UpdateProfileRequest(
     @SerializedName("user_id") val userId: Int,
     val name: String,
+    val email: String,
     val phone: String,
     val gender: String,
     val dob: String,
