@@ -50,6 +50,7 @@ class CheckInViewModel : ViewModel() {
 
                 val currentState = _uiState.value
 
+
                 // 1. Map Sleep (Enum -> Score 1-10)
                 val sleepScore = when (currentState.sleepQuality) {
                     SleepQuality.POOR -> 3
@@ -93,8 +94,10 @@ class CheckInViewModel : ViewModel() {
                 }
 
                 // --- Create Request ---
+                val userId = UserSession.userId
                 // We convert our UI State (Enums) into the API Request (Ints)
                 val request = PredictionRequest(
+                    user_id = userId,
                     sleep_quality = sleepScore,
                     stress_level = stressScore,
                     energy_level = energyScore,

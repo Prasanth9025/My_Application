@@ -1,83 +1,84 @@
 package com.example.myapplication.ui
 
-// --- Added necessary imports for Image support ---
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-// Removed unused icon imports
-// import androidx.compose.material.icons.Icons
-// import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-// Added ContentScale and painterResource imports
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// --- IMPORTANT: Make sure to import your project's R file ---
+import androidx.lifecycle.viewmodel.compose.viewModel // Add this dependency if missing
 import com.example.myapplication.R
+import com.example.myapplication.viewmodel.AuthStatus
+import com.example.myapplication.viewmodel.AuthViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
+    authViewModel: AuthViewModel = viewModel(), // Inject ViewModel
     onLoginSuccess: () -> Unit,
     onSignUpClick: () -> Unit,
     onForgotPasswordClick: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
-    // Custom colors from your design
-    val beigeInputColor = Color(0xFFF3F0E9) // Light beige background for inputs
-    val leafGreen = Color(0xFF436B48) // Dark green for button/icon
+    // Listen to Login Status
+    val loginState by authViewModel.loginState.collectAsState()
+
+    // Handle Side Effects (Toast messages / Navigation)
+    LaunchedEffect(loginState) {
+        when (loginState) {
+            is AuthStatus.Success -> {
+                Toast.makeText(context, "Login Successful!", Toast.LENGTH_SHORT).show()
+                onLoginSuccess() // Navigate to Home
+                authViewModel.resetLoginState()
+            }
+            is AuthStatus.Error -> {
+                Toast.makeText(context, (loginState as AuthStatus.Error).msg, Toast.LENGTH_LONG).show()
+                authViewModel.resetLoginState()
+            }
+            else -> {}
+        }
+    }
+
+    val beigeInputColor = Color(0xFFF3F0E9)
+    val leafGreen = Color(0xFF436B48)
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
+        modifier = Modifier.fillMaxSize().background(Color.White)
     ) {
-        // 1. TOP IMAGE SECTION (Updated)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth() // Matches width: 412 requirement automatically on standard phones
-                .height(218.dp), // Updated height to 218 as requested
-            contentAlignment = Alignment.Center
-        ) {
+        // 1. TOP IMAGE (Same as before)
+        Box(modifier = Modifier.fillMaxWidth().height(218.dp)) {
             Image(
                 painter = painterResource(id = R.drawable.login),
-                contentDescription = "Login header image",
+                contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                // ContentScale.Crop ensures the image fills the 218dp height without distortion,
-                // cropping edges if necessary. Use ContentScale.FillBounds if you want it stretched exactly.
                 contentScale = ContentScale.Crop
-                // Opacity is 1.0f and angle is 0deg by default, so no extra modifiers needed.
             )
         }
 
-        // 2. FORM SECTION
+        // 2. FORM
         Column(
-            modifier = Modifier
-                .padding(24.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(24.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Welcome back",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
+            Text("Welcome back", fontSize = 24.sp, fontWeight = FontWeight.Bold)
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Email Input (Beige Style)
             TextField(
                 value = email,
                 onValueChange = { email = it },
@@ -87,16 +88,13 @@ fun LoginScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = beigeInputColor,
                     unfocusedContainerColor = beigeInputColor,
-                    disabledContainerColor = beigeInputColor,
-                    focusedIndicatorColor = Color.Transparent, // Removes underline
-                    unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = Color.Black
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
                 )
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Password Input (Beige Style)
             TextField(
                 value = password,
                 onValueChange = { password = it },
@@ -107,49 +105,40 @@ fun LoginScreen(
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = beigeInputColor,
                     unfocusedContainerColor = beigeInputColor,
-                    disabledContainerColor = beigeInputColor,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = Color.Black
+                    unfocusedIndicatorColor = Color.Transparent
                 )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Forgot Password (Centered Text)
-            Text(
-                text = "Forgot password?",
-                color = Color.Gray,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clickable { onForgotPasswordClick() }
-            )
-
+            Text("Forgot password?", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.clickable { onForgotPasswordClick() })
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Login Button
+            // LOGIN BUTTON
             Button(
-                onClick = onLoginSuccess,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
+                onClick = {
+                    if(email.isNotEmpty() && password.isNotEmpty()) {
+                        authViewModel.login(email, password) // CALL REAL LOGIN
+                    } else {
+                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = leafGreen),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(8.dp),
+                enabled = loginState !is AuthStatus.Loading // Disable while loading
             ) {
-                Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                if (loginState is AuthStatus.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            // Sign Up Link
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Don't have an account? ", color = Color.Gray)
-                Text(
-                    text = "Sign up",
-                    color = leafGreen,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable { onSignUpClick() }
-                )
+                Text("Sign up", color = leafGreen, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onSignUpClick() })
             }
         }
     }

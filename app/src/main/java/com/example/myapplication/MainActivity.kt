@@ -83,8 +83,8 @@ class MainActivity : ComponentActivity() {
 
                     composable("signup") {
                         SignUpScreen(
-                            { navController.navigate("login") },
-                            { navController.navigate("login") }
+                            onSignUpSuccess={ navController.navigate("login") },
+                            onLoginClick={ navController.navigate("login") }
                         )
                     }
 
