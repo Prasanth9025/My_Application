@@ -1,7 +1,11 @@
 package com.example.myapplication.ui
 
+import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -17,20 +21,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.myapplication.viewmodel.ProfileViewModel
-import com.example.myapplication.viewmodel.CheckInViewModel // Import CheckInViewModel
+import com.example.myapplication.viewmodel.CheckInViewModel
 import com.example.myapplication.data.UserSession
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    checkInViewModel: CheckInViewModel, // <--- CHANGED: Pass CheckInViewModel
+    checkInViewModel: CheckInViewModel,
     onEditProfile: () -> Unit,
     onSettings: () -> Unit,
     onLogout: () -> Unit,
@@ -40,18 +48,24 @@ fun ProfileScreen(
 ) {
     // 1. Observe Profile Data
     val userProfile by profileViewModel.userProfile.collectAsState()
-
-    // 2. Observe Dashboard Data (for Streak & Scores)
     val dashboardData by checkInViewModel.dashboardState.collectAsState()
+
+    // 2. Observe Selected Image
+    val profileImageUri by profileViewModel.profileImageUri.collectAsState()
+
+    // 3. Setup Image Picker
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { profileViewModel.updateProfileImage(it) }
+    }
 
     LaunchedEffect(Unit) {
         profileViewModel.fetchProfileData()
-        checkInViewModel.fetchDashboard() // Ensure fresh data
+        checkInViewModel.fetchDashboard()
     }
 
     val age = remember(userProfile.dob) { calculateAge(userProfile.dob) }
-
-    // 3. Extract Real Data
     val streak = dashboardData?.streak ?: 0
     val currentScores = dashboardData?.current
     val vataScore = currentScores?.vataScore ?: 0
@@ -82,13 +96,40 @@ fun ProfileScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Image
+            // --- PROFILE IMAGE SECTION (UPDATED) ---
             Box(
-                modifier = Modifier.size(100.dp).clip(CircleShape).background(Color(0xFFFFCC80)),
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFCC80))
+                    .clickable {
+                        // Launch gallery on click
+                        launcher.launch("image/*")
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(60.dp), tint = Color.White)
+                if (profileImageUri != null) {
+                    // Show Selected Image
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(profileImageUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Profile Image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Show Default Placeholder
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(60.dp),
+                        tint = Color.White
+                    )
+                }
             }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Name
@@ -119,7 +160,7 @@ fun ProfileScreen(
             CardItem(
                 icon = Icons.Default.CalendarToday,
                 title = "Consecutive Daily Check-in Streak",
-                subtitle = "$streak days", // <--- DYNAMIC
+                subtitle = "$streak days",
                 subtitleColor = if(streak > 0) Color(0xFF00C853) else Color.Gray,
                 onClick = onStreakClick
             )
@@ -151,7 +192,6 @@ fun ProfileScreen(
 }
 
 // ... Keep existing Helper Functions (CardItem, SectionHeader, calculateAge) ...
-// (If you need them, I can paste them again, but they are the same as before)
 @Composable
 fun CardItem(icon: ImageVector, title: String, subtitle: String? = null, subtitleColor: Color = Color.Gray, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))) {
@@ -177,7 +217,6 @@ fun SectionHeader(title: String) {
 }
 
 fun calculateAge(dobString: String?): String {
-    // Keep your existing calculation logic here
     if (dobString.isNullOrEmpty()) return "N/A"
     return try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
