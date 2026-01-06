@@ -20,6 +20,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.*
+import com.example.myapplication.viewmodel.AuthViewModel
 import com.example.myapplication.viewmodel.CheckInViewModel
 import com.example.myapplication.data.UserSession
 
@@ -39,8 +40,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navController = rememberNavController()
-            // Shared ViewModel
-            val viewModel: CheckInViewModel = viewModel()
+
+            // --- VIEW MODELS ---
+            val checkInViewModel: CheckInViewModel = viewModel()
+            val authViewModel: AuthViewModel = viewModel() // <--- ADDED AUTH VIEWMODEL
 
             val items = listOf(
                 BottomNavItem.Home,
@@ -75,6 +78,7 @@ class MainActivity : ComponentActivity() {
                     composable("welcome") { WelcomeScreen { navController.navigate("wellness") } }
                     composable("wellness") { WellnessScreen { navController.navigate("features") } }
                     composable("features") { FeatureScreen { navController.navigate("login") } }
+
                     composable("login") {
                         LoginScreen(
                             onLoginSuccess = { navController.navigate(BottomNavItem.Home.route) { popUpTo("login") { inclusive = true } } },
@@ -82,17 +86,39 @@ class MainActivity : ComponentActivity() {
                             onForgotPasswordClick = { navController.navigate("forgot_password") }
                         )
                     }
+
                     composable("signup") {
                         SignUpScreen(onSignUpSuccess = { navController.navigate("login") }, onLoginClick = { navController.navigate("login") })
                     }
-                    composable("forgot_password") { ForgotPasswordScreen({ navController.navigate("verify_otp") }, { navController.navigate("login") }) }
-                    composable("verify_otp") { VerifyOtpScreen({ navController.navigate("reset_password") }, { navController.popBackStack() }) }
-                    composable("reset_password") { ResetPasswordScreen({ navController.navigate("login") }, { navController.navigate("login") }) }
+
+                    // --- FORGOT PASSWORD FLOW (UPDATED) ---
+                    composable("forgot_password") {
+                        ForgotPasswordScreen(
+                            onSendCodeClick = { navController.navigate("reset_password") },
+                            onBackClick = { navController.popBackStack() },
+                            authViewModel = authViewModel // Pass Shared VM
+                        )
+                    }
+
+                    // --- RESET PASSWORD FLOW (UPDATED) ---
+                    // Note: 'verify_otp' is removed because ResetPasswordScreen now handles OTP entry
+                    composable("reset_password") {
+                        ResetPasswordScreen(
+                            onResetClick = {
+                                // On Success, go to Login
+                                navController.navigate("login") {
+                                    popUpTo("login") { inclusive = true }
+                                }
+                            },
+                            onBackClick = { navController.popBackStack() },
+                            authViewModel = authViewModel // Pass Shared VM
+                        )
+                    }
 
                     // --- HOME ---
                     composable(BottomNavItem.Home.route) {
                         HomeScreen(
-                            viewModel = viewModel,
+                            viewModel = checkInViewModel,
                             onStartCheckIn = { navController.navigate(BottomNavItem.CheckIn.route) },
                             onDoshaClick = { type -> navController.navigate("dosha_detail/$type") },
                             onNotificationClick = { navController.navigate("notifications") },
@@ -102,17 +128,17 @@ class MainActivity : ComponentActivity() {
 
                     // --- CHECK-IN ---
                     composable(BottomNavItem.CheckIn.route) {
-                        DailyCheckInScreen(viewModel = viewModel, onNavigateToSummary = { navController.navigate("checkin_summary") })
+                        DailyCheckInScreen(viewModel = checkInViewModel, onNavigateToSummary = { navController.navigate("checkin_summary") })
                     }
                     composable("checkin_summary") {
-                        CheckInSummaryScreen(viewModel, onBack = { navController.popBackStack() }, onConfirm = { viewModel.submitData(); navController.navigate("checkin_success") })
+                        CheckInSummaryScreen(viewModel = checkInViewModel, onBack = { navController.popBackStack() }, onConfirm = { checkInViewModel.submitData(); navController.navigate("checkin_success") })
                     }
                     composable("checkin_success") {
-                        val prediction by viewModel.prediction.collectAsState()
+                        val prediction by checkInViewModel.prediction.collectAsState()
                         CheckInSuccessScreen(isReady = prediction != null, onGoToDashboard = { navController.navigate("result") { popUpTo("checkin_success") { inclusive = true } } })
                     }
                     composable("result") {
-                        val prediction by viewModel.prediction.collectAsState()
+                        val prediction by checkInViewModel.prediction.collectAsState()
                         if (prediction != null) {
                             ResultScreen(prediction = prediction!!, onGoHome = { navController.navigate(BottomNavItem.Home.route) { popUpTo(BottomNavItem.Home.route) { inclusive = true } } })
                         } else {
@@ -122,7 +148,7 @@ class MainActivity : ComponentActivity() {
 
                     // --- GUIDANCE ---
                     composable(BottomNavItem.Guidance.route) {
-                        val prediction by viewModel.prediction.collectAsState()
+                        val prediction by checkInViewModel.prediction.collectAsState()
                         GuidanceScreen(prediction)
                     }
 
@@ -132,7 +158,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("dosha_trend/{type}") { backStackEntry ->
                         val type = backStackEntry.arguments?.getString("type") ?: "Vata"
-                        DoshaTrendScreen(doshaType = type, onBack = { navController.popBackStack() }, viewModel = viewModel)
+                        DoshaTrendScreen(doshaType = type, onBack = { navController.popBackStack() }, viewModel = checkInViewModel)
                     }
                     composable("history") {
                         TrendsHistoryScreen(onBack = { navController.popBackStack() })
@@ -141,7 +167,7 @@ class MainActivity : ComponentActivity() {
                     // --- PROFILE ---
                     composable(BottomNavItem.Profile.route) {
                         ProfileScreen(
-                            checkInViewModel = viewModel, // Correctly passing ViewModel
+                            checkInViewModel = checkInViewModel, // Correctly passing ViewModel
                             onEditProfile = { navController.navigate("edit_profile") },
                             onSettings = { navController.navigate("settings") },
                             onLogout = { navController.navigate("login") { popUpTo(0) } },
@@ -150,10 +176,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // --- CONSISTENCY (Moved here, DUPLICATE REMOVED) ---
+                    // --- CONSISTENCY ---
                     composable("consistency") {
                         ConsistencyScreen(
-                            viewModel = viewModel, // Using shared ViewModel
+                            viewModel = checkInViewModel, // Using shared ViewModel
                             onBack = { navController.popBackStack() }
                         )
                     }
@@ -169,8 +195,6 @@ class MainActivity : ComponentActivity() {
                     composable("dosha_learn/{type}") { backStackEntry -> DoshaLearnScreen(backStackEntry.arguments?.getString("type") ?: "Vata", { navController.popBackStack() }) }
                     composable("edit_profile") { EditProfileScreen({ navController.popBackStack() }, { navController.popBackStack() }) }
 
-                    // composable("consistency") { ... }  <--- DELETED DUPLICATE FROM HERE
-
                     composable("notifications") { NotificationsScreen { navController.popBackStack() } }
 
                     // --- DOSHA DETAIL ---
@@ -179,7 +203,7 @@ class MainActivity : ComponentActivity() {
                         DoshaDetailScreen(
                             doshaType = type,
                             onBack = { navController.popBackStack() },
-                            viewModel = viewModel
+                            viewModel = checkInViewModel
                         )
                     }
                 }

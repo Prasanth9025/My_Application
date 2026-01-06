@@ -15,10 +15,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.AuthStatus
+import com.example.myapplication.viewmodel.AuthViewModel
 
 @Composable
-fun ForgotPasswordScreen(onSendCodeClick: () -> Unit, onBackClick: () -> Unit) {
+fun ForgotPasswordScreen(
+    onSendCodeClick: () -> Unit,
+    onBackClick: () -> Unit,
+    authViewModel: AuthViewModel = viewModel() // Inject ViewModel
+) {
     var email by remember { mutableStateOf("") }
+
+    // 1. Observe Authentication State
+    val forgotState by authViewModel.forgotPasswordState.collectAsState()
+    val isLoading = forgotState is AuthStatus.Loading
+
+    // 2. Handle Success (Navigate to next screen)
+    LaunchedEffect(forgotState) {
+        if (forgotState is AuthStatus.Success) {
+            authViewModel.resetForgotState() // Reset state so it doesn't auto-trigger on back press
+            onSendCodeClick()
+        }
+    }
 
     // Exact colors from your screenshot
     val inputBgColor = Color(0xFFEFF5F0)  // Light mint/gray for input
@@ -29,14 +48,13 @@ fun ForgotPasswordScreen(onSendCodeClick: () -> Unit, onBackClick: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .padding(24.dp) // Padding applied to the whole screen
+            .padding(24.dp)
     ) {
         // 1. Header (Back Icon + Title)
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            // Back Icon (Aligned Left)
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
@@ -46,7 +64,6 @@ fun ForgotPasswordScreen(onSendCodeClick: () -> Unit, onBackClick: () -> Unit) {
                     .clickable { onBackClick() }
             )
 
-            // Title (Centered)
             Text(
                 text = "Forgot Password",
                 fontSize = 18.sp,
@@ -75,6 +92,7 @@ fun ForgotPasswordScreen(onSendCodeClick: () -> Unit, onBackClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp)),
+            enabled = !isLoading, // Disable while loading
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = inputBgColor,
                 unfocusedContainerColor = inputBgColor,
@@ -85,29 +103,51 @@ fun ForgotPasswordScreen(onSendCodeClick: () -> Unit, onBackClick: () -> Unit) {
             )
         )
 
+        // 4. Error Message Display
+        if (forgotState is AuthStatus.Error) {
+            Text(
+                text = (forgotState as AuthStatus.Error).msg,
+                color = Color.Red,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 4. Send Code Button
+        // 5. Send Code Button
         Button(
-            onClick = { onSendCodeClick() },
+            onClick = {
+                if (email.isNotEmpty()) {
+                    authViewModel.sendOtp(email)
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
             colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            enabled = !isLoading && email.isNotEmpty()
         ) {
-            Text(
-                text = "Send Verification Code",
-                color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color.White
+                )
+            } else {
+                Text(
+                    text = "Send Verification Code",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
         }
 
-        // 5. Spacer to push "Back to Login" to the bottom
+        // 6. Spacer to push "Back to Login" to the bottom
         Spacer(modifier = Modifier.weight(1f))
 
-        // 6. Footer Link
+        // 7. Footer Link
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center

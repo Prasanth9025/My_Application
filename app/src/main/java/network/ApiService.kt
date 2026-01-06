@@ -39,4 +39,10 @@ interface ApiService {
     // Fetches current scores, history (for graphs), and calculated trends
     @GET("get_dashboard.php")
     suspend fun getDashboard(@Query("user_id") userId: Int): DashboardResponse
+
+    @POST("forgot_password.php")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): ForgotPasswordResponse
+
+    @POST("reset_password.php")
+    suspend fun resetPassword(@Body request: ResetPasswordRequest): ResetPasswordResponse
 }

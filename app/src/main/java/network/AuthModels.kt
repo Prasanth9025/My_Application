@@ -5,6 +5,12 @@ import com.google.gson.annotations.SerializedName
 // --- LOGIN ---
 data class LoginRequest(val email: String, val password: String)
 data class LoginResponse(val status: String, val message: String, @SerializedName("user_id") val userId: Int?, val name: String?)
+//forgot
+data class ForgotPasswordRequest(val email: String)
+data class ForgotPasswordResponse(val status: String, val message: String)
+
+data class ResetPasswordRequest(val email: String, val otp: String, @SerializedName("new_password") val newPassword: String)
+data class ResetPasswordResponse(val status: String, val message: String)
 
 // --- REGISTER ---
 data class RegisterRequest(val name: String, val email: String, val password: String, val phone: String)
