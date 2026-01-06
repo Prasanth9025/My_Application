@@ -1,10 +1,9 @@
 package com.example.myapplication.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items // Import for List items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,13 +27,13 @@ import java.util.Locale
 @Composable
 fun TrendsHistoryScreen(
     onBack: () -> Unit,
-    viewModel: HistoryViewModel = viewModel() // Inject ViewModel
+    viewModel: HistoryViewModel = viewModel()
 ) {
     // 1. Observe Real Data
     val historyList by viewModel.historyList.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // 2. Fetch Data when screen opens
+    // 2. Fetch Data
     LaunchedEffect(Unit) {
         viewModel.fetchHistory()
     }
@@ -59,18 +58,22 @@ fun TrendsHistoryScreen(
                 .padding(horizontal = 24.dp)
         ) {
             if (isLoading) {
-                // Show Loading Spinner
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize()
-                ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+
+                    // --- GRAPH SECTION ---
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
-                        Text("Weekly Overview", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("Weekly Vata Overview", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Graph Section (Visual Only for now)
+                        // Extract scores for the graph (Reverse to show Oldest -> Newest)
+                        // We extract vataScore for the visualization
+                        val graphScores = remember(historyList) {
+                            historyList.take(7).map { it.vataScore }.reversed()
+                        }
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -79,10 +82,15 @@ fun TrendsHistoryScreen(
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
                         ) {
                             Box(modifier = Modifier.padding(16.dp)) {
-                                WaveGraph(
-                                    modifier = Modifier.fillMaxSize(),
-                                    color = Color(0xFF5D8F78)
-                                )
+                                if (graphScores.isNotEmpty()) {
+                                    DynamicHistoryGraph(
+                                        scores = graphScores,
+                                        color = Color(0xFF5D8F78),
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Text("Not enough data", modifier = Modifier.align(Alignment.Center))
+                                }
                             }
                         }
 
@@ -91,26 +99,22 @@ fun TrendsHistoryScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // 3. REAL LIST ITEMS
+                    // --- LIST ITEMS ---
                     if (historyList.isEmpty()) {
                         item {
-                            Text(
-                                "No history found yet.",
-                                color = Color.Gray,
-                                modifier = Modifier.padding(top = 20.dp)
-                            )
+                            Text("No history found yet.", color = Color.Gray, modifier = Modifier.padding(top = 20.dp))
                         }
                     } else {
                         items(historyList) { item ->
                             HistoryListItem(
-                                dosha = item.predictedDosha, // Correct (CamelCase)
-                                dateString = item.createdAt  // Correct (CamelCase)
+                                dosha = item.predictedDosha,
+                                dateString = item.createdAt,
+                                // Pass detailed scores for the card
+                                details = "Vata: ${item.vataScore} | Pitta: ${item.pittaScore} | Kapha: ${item.kaphaScore}"
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
-
-                    // Add bottom spacing so last item isn't cut off
                     item { Spacer(modifier = Modifier.height(50.dp)) }
                 }
             }
@@ -119,22 +123,20 @@ fun TrendsHistoryScreen(
 }
 
 @Composable
-fun HistoryListItem(dosha: String, dateString: String) {
-    // Format Date: "2024-05-10 14:00:00" -> "10 May, 2024"
+fun HistoryListItem(dosha: String, dateString: String, details: String) {
     val formattedDate = try {
         val input = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val output = SimpleDateFormat("dd MMM, yyyy", Locale.getDefault())
         val date = input.parse(dateString)
         output.format(date ?: "")
     } catch (e: Exception) {
-        dateString // Fallback if parsing fails
+        dateString
     }
 
-    // Color code based on Dosha
     val cardColor = when (dosha) {
-        "Vata" -> Color(0xFFE3F2FD) // Light Blue
-        "Pitta" -> Color(0xFFFFEBEE) // Light Red
-        "Kapha" -> Color(0xFFE8F5E9) // Light Green
+        "Vata" -> Color(0xFFE3F2FD)
+        "Pitta" -> Color(0xFFFFEBEE)
+        "Kapha" -> Color(0xFFE8F5E9)
         else -> Color(0xFFF5F5F5)
     }
 
@@ -144,40 +146,48 @@ fun HistoryListItem(dosha: String, dateString: String) {
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(text = "Dosha", fontSize = 12.sp, color = Color.Gray)
-                Text(
-                    text = dosha, // Shows "Vata", "Pitta", etc.
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Text(text = dosha, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Spacer(modifier = Modifier.height(4.dp))
+                // Show detailed scores
+                Text(text = details, fontSize = 10.sp, color = Color.Gray)
             }
-            Text(
-                text = formattedDate,
-                fontSize = 14.sp,
-                color = Color.DarkGray
-            )
+            Text(text = formattedDate, fontSize = 14.sp, color = Color.DarkGray)
         }
     }
 }
 
+// --- DYNAMIC GRAPH LOGIC ---
 @Composable
-fun WaveGraph(modifier: Modifier = Modifier, color: Color) {
+fun DynamicHistoryGraph(scores: List<Int>, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
+        if (scores.isEmpty()) return@Canvas
 
-        val path = Path().apply {
-            moveTo(0f, height * 0.7f)
-            cubicTo(width * 0.2f, height * 0.9f, width * 0.4f, height * 0.4f, width * 0.5f, height * 0.6f)
-            cubicTo(width * 0.6f, height * 0.8f, width * 0.8f, height * 0.3f, width, height * 0.5f)
+        val maxScore = 100f
+        val widthPerPoint = size.width / (scores.size - 1).coerceAtLeast(1)
+        val height = size.height
+        val path = Path()
+
+        scores.forEachIndexed { index, score ->
+            // Invert Y axis because Canvas (0,0) is top-left
+            val x = index * widthPerPoint
+            val y = height - ((score / maxScore) * height)
+
+            if (index == 0) {
+                path.moveTo(x, y)
+            } else {
+                val prevX = (index - 1) * widthPerPoint
+                val prevScore = scores[index - 1]
+                val prevY = height - ((prevScore / maxScore) * height)
+
+                // Smooth Cubic Bezier Curve
+                path.cubicTo((prevX + x) / 2, prevY, (prevX + x) / 2, y, x, y)
+            }
         }
 
         drawPath(

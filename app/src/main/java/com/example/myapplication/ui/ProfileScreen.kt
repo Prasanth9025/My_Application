@@ -38,16 +38,12 @@ fun ProfileScreen(
     onStreakClick: () -> Unit,
     viewModel: ProfileViewModel = viewModel()
 ) {
-    // 1. Observe User Data
     val userProfile by viewModel.userProfile.collectAsState()
 
-    // 2. Refresh Data on Entry
     LaunchedEffect(Unit) {
         viewModel.fetchProfileData()
     }
 
-    // 3. Smart Age Calculation
-    // Recalculates only when DOB changes
     val age = remember(userProfile.dob) {
         calculateAge(userProfile.dob)
     }
@@ -81,14 +77,15 @@ fun ProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // --- PROFILE IMAGE ---
+            // --- PROFILE IMAGE (Circle) ---
             Box(
                 modifier = Modifier
                     .size(100.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFFCC80)),
+                    .background(Color(0xFFFFCC80)), // Skin-tone/Orange background
                 contentAlignment = Alignment.Center
             ) {
+                // You can replace this Icon with an Image() composable if you have the PNG resource
                 Icon(
                     Icons.Default.Person,
                     contentDescription = null,
@@ -103,12 +100,13 @@ fun ProfileScreen(
             Text(
                 text = if (userProfile.name == "Loading...") "Loading..." else userProfile.name.ifEmpty { "User" },
                 fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // --- DETAILS LINE (Age, Email, Phone) ---
+            // --- DETAILS LINE ---
             val detailsText = buildString {
                 append("Age: $age")
                 append(", Email: ${userProfile.email}")
@@ -120,7 +118,7 @@ fun ProfileScreen(
             Text(
                 text = detailsText,
                 fontSize = 14.sp,
-                color = Color(0xFF6B9B8A), // Greenish text color
+                color = Color(0xFF6B9B8A), // Muted Green for details
                 textAlign = TextAlign.Center,
                 lineHeight = 20.sp,
                 modifier = Modifier.padding(horizontal = 16.dp)
@@ -134,7 +132,7 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF5F1)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEFF5F1)), // Light Greenish Gray
                 shape = RoundedCornerShape(8.dp),
                 elevation = ButtonDefaults.buttonElevation(0.dp)
             ) {
@@ -143,9 +141,8 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // --- MILESTONES & STATS ---
+            // --- MILESTONES ---
             SectionHeader("Key Milestones")
-
             CardItem(
                 icon = Icons.Default.CalendarToday,
                 title = "Consecutive Daily Check-in Streak",
@@ -156,31 +153,55 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // --- DOSHA SCORES (Matching the List Style) ---
             SectionHeader("Dosha Scores")
-            val vataScore = prediction?.vata ?: 60
-            val pittaScore = prediction?.pitta ?: 40
-            val kaphaScore = prediction?.kapha ?: 50
 
-            CardItem(Icons.Default.Air, "Vata: $vataScore", onClick = {})
-            Spacer(modifier = Modifier.height(12.dp))
-            CardItem(Icons.Default.LocalFireDepartment, "Pitta: $pittaScore", onClick = {})
-            Spacer(modifier = Modifier.height(12.dp))
-            CardItem(Icons.Default.WaterDrop, "Kapha: $kaphaScore", onClick = {})
+            val vataScore = prediction?.vata ?: 0
+            val pittaScore = prediction?.pitta ?: 0
+            val kaphaScore = prediction?.kapha ?: 0
+
+            // 1. Vata (Air)
+            CardItem(
+                icon = Icons.Default.Air, // Or Icons.Default.Cloud if Air not available
+                title = "Vata: $vataScore",
+                onClick = {}
+            )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // About Doshas
-            CardItem(Icons.Default.Face, "About Doshas", onClick = onAboutClick)
+            // 2. Pitta (Fire)
+            CardItem(
+                icon = Icons.Default.LocalFireDepartment,
+                title = "Pitta: $pittaScore",
+                onClick = {}
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 3. Kapha (Water)
+            CardItem(
+                icon = Icons.Default.WaterDrop,
+                title = "Kapha: $kaphaScore",
+                onClick = {}
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 4. About Doshas
+            CardItem(
+                icon = Icons.Default.School,
+                title = "About Doshas",
+                onClick = onAboutClick
+            )
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // --- LOGOUT ---
+            // --- LOGOUT BUTTON ---
             Button(
                 onClick = {
                     UserSession.clearSession()
                     onLogout()
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF0000)), // Red
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Logout", fontWeight = FontWeight.Bold, color = Color.White)
@@ -190,57 +211,7 @@ fun ProfileScreen(
     }
 }
 
-// --- ROBUST AGE CALCULATION LOGIC ---
-fun calculateAge(dobString: String?): String {
-    if (dobString.isNullOrEmpty()) return "N/A"
-
-    return try {
-        // We need Android O (API 26+) for java.time, but this check makes it safe
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val currentYear = LocalDate.now().year
-
-            // 1. Check if input is just a 4-digit Year (e.g. "1995")
-            // Regex checks if the string is exactly 4 digits
-            if (dobString.matches(Regex("^\\d{4}$"))) {
-                val birthYear = dobString.toInt()
-                return (currentYear - birthYear).toString()
-            }
-
-            // 2. Check if input is a Full Date (e.g. "1995-05-20")
-            try {
-                val birthDate = LocalDate.parse(dobString) // Expects YYYY-MM-DD
-                val currentDate = LocalDate.now()
-                return java.time.Period.between(birthDate, currentDate).years.toString()
-            } catch (e: Exception) {
-                // If parsing fails (maybe format is DD-MM-YYYY?), try to extract just the year
-                // This finds the first 4-digit number in the string
-                val yearRegex = Regex("(\\d{4})")
-                val match = yearRegex.find(dobString)
-                if (match != null) {
-                    val birthYear = match.groupValues[1].toInt()
-                    return (currentYear - birthYear).toString()
-                }
-            }
-        }
-        "N/A"
-    } catch (e: Exception) {
-        "N/A"
-    }
-}
-
-// ---------------- Helper Components ----------------
-
-@Composable
-fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        fontSize = 18.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-        textAlign = TextAlign.Start
-    )
-}
-
+// --- SHARED COMPONENT FOR LIST ITEMS ---
 @Composable
 fun CardItem(
     icon: ImageVector,
@@ -253,29 +224,89 @@ fun CardItem(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA)), // Light Gray Background
+        elevation = CardDefaults.cardElevation(0.dp) // Flat look
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Icon Box
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFEFF5F1)),
+                    .background(Color(0xFFEFF5F1)), // Light Green Icon Background
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = Color.Black, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.Black, // Dark Icon
+                    modifier = Modifier.size(20.dp)
+                )
             }
+
             Spacer(modifier = Modifier.width(16.dp))
+
+            // Text
             Column {
-                Text(text = title, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Medium, // Medium weight matches screenshot
+                    fontSize = 16.sp,
+                    color = Color.Black
+                )
                 if (subtitle != null) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = subtitle, fontSize = 14.sp, color = subtitleColor)
+                    Text(
+                        text = subtitle,
+                        fontSize = 14.sp,
+                        color = subtitleColor
+                    )
                 }
             }
         }
+    }
+}
+
+// --- HELPER FUNCTIONS ---
+@Composable
+fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+        textAlign = TextAlign.Start
+    )
+}
+
+fun calculateAge(dobString: String?): String {
+    if (dobString.isNullOrEmpty()) return "N/A"
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val currentYear = LocalDate.now().year
+            if (dobString.matches(Regex("^\\d{4}$"))) {
+                val birthYear = dobString.toInt()
+                return (currentYear - birthYear).toString()
+            }
+            try {
+                val birthDate = LocalDate.parse(dobString)
+                val currentDate = LocalDate.now()
+                return java.time.Period.between(birthDate, currentDate).years.toString()
+            } catch (e: Exception) {
+                val yearRegex = Regex("(\\d{4})")
+                val match = yearRegex.find(dobString)
+                if (match != null) {
+                    val birthYear = match.groupValues[1].toInt()
+                    return (currentYear - birthYear).toString()
+                }
+            }
+        }
+        "N/A"
+    } catch (e: Exception) {
+        "N/A"
     }
 }

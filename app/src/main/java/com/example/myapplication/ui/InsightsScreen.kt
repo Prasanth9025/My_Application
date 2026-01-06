@@ -20,8 +20,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.InsightsViewModel // Import your new ViewModel
 
-// --- PRIVATE COLORS (Renamed to avoid conflicts with other files) ---
+// --- PRIVATE COLORS ---
 private val InsightsDarkGreen = Color(0xFF2E5E56)
 private val InsightsLightBar = Color(0xFFE8F5E9)
 private val InsightsActiveBar = Color(0xFFA5D6A7)
@@ -34,10 +36,18 @@ private val InsightsNegative = Color(0xFFEF5350)
 @Composable
 fun InsightsScreen(
     onBackClick: () -> Unit = {},
-    // Unused params kept to prevent MainActivity crash
     onTrendClick: (String) -> Unit = {},
-    onHistoryClick: () -> Unit = {}
+    onHistoryClick: () -> Unit = {},
+    viewModel: InsightsViewModel = viewModel() // 1. Inject ViewModel
 ) {
+    // 2. Observe Real Data
+    val data by viewModel.insightsData.collectAsState()
+
+    // 3. Fetch Data on Launch
+    LaunchedEffect(Unit) {
+        viewModel.fetchInsights()
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -65,24 +75,41 @@ fun InsightsScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // 2. Dosha Balance Section (Line Chart)
+            // 2. Dosha Balance Section (Visual only for now, can be updated later)
+            // ... inside LazyColumn ...
+
+            // 2. Dosha Balance Section
             item {
                 Text("Dosha Balance", fontSize = 14.sp, color = InsightsTextGray)
                 Spacer(Modifier.height(4.dp))
-                Text("Vata 30%, Pitta 40%, Kapha 30%", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+                // UPDATED: Use Real Data
+                Text(
+                    text = data.doshaBalanceText, // <--- CHANGED
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+
                 Spacer(Modifier.height(4.dp))
-                Text("Last 7 Days +5%", fontSize = 14.sp, color = InsightsPositive, fontWeight = FontWeight.Medium)
+
+                // UPDATED: Use Real Trend
+                Text(
+                    text = data.doshaTrendText, // <--- CHANGED
+                    fontSize = 14.sp,
+                    color = InsightsPositive,
+                    fontWeight = FontWeight.Medium
+                )
 
                 Spacer(Modifier.height(24.dp))
 
-                // The Wavy Line Chart
                 InsightsLineChart(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(150.dp)
                 )
 
-                // Days Row
+                // ... keep the rest ...
                 Row(
                     Modifier.fillMaxWidth().padding(top = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -103,36 +130,36 @@ fun InsightsScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
-            // Sleep Chart
+            // Sleep Chart (REAL DATA)
             item {
                 InsightsFactorCard(
                     title = "Sleep",
-                    value = "7.5 hours",
-                    trend = "+10%",
-                    barValues = listOf(0.7f, 0.75f, 0.6f, 0.8f, 0.7f, 0.5f, 0.75f)
+                    value = data.avgSleep, // From ViewModel
+                    trend = "Avg",
+                    barValues = data.sleepChart // From ViewModel
                 )
                 Spacer(Modifier.height(24.dp))
             }
 
-            // Hydration Chart
+            // Hydration Chart (REAL DATA)
             item {
                 InsightsFactorCard(
                     title = "Hydration",
-                    value = "2.5 liters",
-                    trend = "-5%",
+                    value = data.avgHydration, // From ViewModel
+                    trend = "Avg",
                     trendColor = InsightsNegative,
-                    barValues = listOf(0.5f, 0.6f, 0.5f, 0.5f, 0.4f, 0.5f, 0.5f)
+                    barValues = data.hydrationChart // From ViewModel
                 )
                 Spacer(Modifier.height(24.dp))
             }
 
-            // Stress Chart
+            // Stress Chart (REAL DATA)
             item {
                 InsightsFactorCard(
                     title = "Stress",
-                    value = "Moderate",
-                    trend = "+2%",
-                    barValues = listOf(0.3f, 0.4f, 0.3f, 0.3f, 0.2f, 0.3f, 0.3f)
+                    value = data.avgStress, // From ViewModel
+                    trend = "Avg",
+                    barValues = data.stressChart // From ViewModel
                 )
                 Spacer(Modifier.height(40.dp))
             }
@@ -140,7 +167,7 @@ fun InsightsScreen(
     }
 }
 
-// --- RENAMED COMPONENTS TO AVOID CONFLICTS ---
+// --- COMPONENTS ---
 
 @Composable
 private fun InsightsToggle() {
@@ -198,7 +225,10 @@ private fun InsightsFactorCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom
         ) {
-            barValues.forEachIndexed { index, fillLevel ->
+            // Fill with empty bars if list is short to maintain layout
+            val displayValues = if (barValues.isEmpty()) List(7) { 0.1f } else barValues
+
+            displayValues.take(7).forEachIndexed { index, fillLevel ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
@@ -211,14 +241,16 @@ private fun InsightsFactorCard(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .fillMaxHeight(fillLevel)
+                                .fillMaxHeight(fillLevel.coerceIn(0.1f, 1f)) // Ensure minimum height visibility
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(InsightsActiveBar)
                         )
                     }
                     Spacer(Modifier.height(8.dp))
+                    // Simple day labels
+                    val dayLabel = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").getOrElse(index) { "" }
                     Text(
-                        text = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[index],
+                        text = dayLabel,
                         fontSize = 12.sp,
                         color = InsightsTextGray
                     )

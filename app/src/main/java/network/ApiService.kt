@@ -34,4 +34,9 @@ interface ApiService {
     // Matches your new update_profile.php script
     @POST("update_profile.php")
     suspend fun updateProfile(@Body request: UpdateProfileRequest): UpdateProfileResponse
+
+    // --- DASHBOARD ---
+    // Fetches current scores, history (for graphs), and calculated trends
+    @GET("get_dashboard.php")
+    suspend fun getDashboard(@Query("user_id") userId: Int): DashboardResponse
 }

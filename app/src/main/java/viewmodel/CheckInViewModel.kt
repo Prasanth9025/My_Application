@@ -2,7 +2,8 @@ package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.myapplication.data.* // Import your State, Enums, and UserSession
+import com.example.myapplication.data.*
+import com.example.myapplication.network.DashboardResponse
 import com.example.myapplication.network.PredictionRequest
 import com.example.myapplication.network.PredictionResponse
 import com.example.myapplication.network.RetrofitClient
@@ -20,13 +21,15 @@ class CheckInViewModel : ViewModel() {
     private val _prediction = MutableStateFlow<PredictionResponse?>(null)
     val prediction: StateFlow<PredictionResponse?> = _prediction.asStateFlow()
 
-    // --- Update Functions (UI calls these) ---
+    private val _dashboardState = MutableStateFlow<DashboardResponse?>(null)
+    val dashboardState: StateFlow<DashboardResponse?> = _dashboardState.asStateFlow()
+
+    // --- Simple Updates ---
     fun updateSleepDuration(value: Float) { _uiState.update { it.copy(sleepDuration = value) } }
     fun updateSleepQuality(value: SleepQuality) { _uiState.update { it.copy(sleepQuality = value) } }
     fun updateStressLevel(value: StressLevel) { _uiState.update { it.copy(stressLevel = value) } }
     fun updateMorningEnergy(value: EnergyLevel) { _uiState.update { it.copy(morningEnergy = value) } }
     fun updateEveningEnergy(value: EnergyLevel) { _uiState.update { it.copy(eveningEnergy = value) } }
-
     fun updateBowel(value: BowelMovement) { _uiState.update { it.copy(bowelMovement = value) } }
     fun updateHydration(value: Int) { _uiState.update { it.copy(hydration = value) } }
     fun updateMood(value: String) { _uiState.update { it.copy(mood = value) } }
@@ -42,60 +45,36 @@ class CheckInViewModel : ViewModel() {
         }
     }
 
-    // --- REAL BACKEND SUBMIT FUNCTION ---
+    // --- FETCH DASHBOARD ---
+    fun fetchDashboard() {
+        viewModelScope.launch {
+            try {
+                val userId = UserSession.getUserId()
+                if (userId != -1) {
+                    val response = RetrofitClient.apiService.getDashboard(userId)
+                    _dashboardState.value = response
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // --- SUBMIT DATA (UPDATED) ---
     fun submitData() {
         viewModelScope.launch {
             try {
-                println("DEBUG: Starting Real Network Request...")
-
                 val currentState = _uiState.value
-
-                // 1. Map Sleep (Enum -> Score 1-10)
-                val sleepScore = when (currentState.sleepQuality) {
-                    SleepQuality.POOR -> 3
-                    SleepQuality.MODERATE -> 5
-                    SleepQuality.GOOD -> 8
-                    null -> 5
-                }
-
-                // 2. Map Stress (Enum -> Score 1-10)
-                val stressScore = when (currentState.stressLevel) {
-                    StressLevel.LOW -> 2
-                    StressLevel.MEDIUM -> 5
-                    StressLevel.HIGH -> 9
-                    null -> 5
-                }
-
-                // 3. Map Energy (Enum -> Score 1-10)
-                val energyScore = when (currentState.morningEnergy) {
-                    EnergyLevel.LOW -> 3
-                    EnergyLevel.NORMAL -> 6
-                    EnergyLevel.HIGH -> 9
-                    null -> 5
-                }
-
-                // 4. Map Digestion
-                val digestionScore = when (currentState.digestion) {
-                    Digestion.LIGHT -> 3
-                    Digestion.NORMAL -> 6
-                    Digestion.HEAVY -> 2
-                    Digestion.BLOATED -> 1
-                    null -> 5
-                }
-
-                // 5. Map Bowel
-                val bowelScore = when (currentState.bowelMovement) {
-                    BowelMovement.REGULAR -> 6
-                    BowelMovement.DRY_HARD -> 3
-                    BowelMovement.LOOSE -> 8
-                    BowelMovement.HEAVY -> 2
-                    null -> 5
-                }
-
-                // --- FIX IS HERE: Use getUserId() ---
                 val userId = UserSession.getUserId()
 
-                // --- Create Request ---
+                // Enum Mappings
+                val sleepScore = when (currentState.sleepQuality) { SleepQuality.POOR -> 3; SleepQuality.MODERATE -> 5; SleepQuality.GOOD -> 8; null -> 5 }
+                val stressScore = when (currentState.stressLevel) { StressLevel.LOW -> 2; StressLevel.MEDIUM -> 5; StressLevel.HIGH -> 9; null -> 5 }
+                val energyScore = when (currentState.morningEnergy) { EnergyLevel.LOW -> 3; EnergyLevel.NORMAL -> 6; EnergyLevel.HIGH -> 9; null -> 5 }
+                val digestionScore = when (currentState.digestion) { Digestion.LIGHT -> 3; Digestion.NORMAL -> 6; Digestion.HEAVY -> 2; Digestion.BLOATED -> 1; null -> 5 }
+                val bowelScore = when (currentState.bowelMovement) { BowelMovement.REGULAR -> 6; BowelMovement.DRY_HARD -> 3; BowelMovement.LOOSE -> 8; BowelMovement.HEAVY -> 2; null -> 5 }
+
+                // Create Request with ALL fields
                 val request = PredictionRequest(
                     user_id = userId,
                     sleep_quality = sleepScore,
@@ -103,19 +82,18 @@ class CheckInViewModel : ViewModel() {
                     energy_level = energyScore,
                     digestion = digestionScore,
                     stool_type = bowelScore,
-                    skin_condition = 5, // Default for now
-                    gender = 1          // Default for now
+                    skin_condition = 5,
+                    gender = 1,
+
+                    // Sending UI Data
+                    sleep_hours = currentState.sleepDuration,
+                    hydration = currentState.hydration.toFloat()
                 )
 
-                println("DEBUG: Sending Data: $request")
-
                 val response = RetrofitClient.apiService.predictDosha(request)
-
-                println("DEBUG: Success! Response: $response")
                 _prediction.value = response
-
+                fetchDashboard() // Refresh home screen
             } catch (e: Exception) {
-                println("DEBUG: Network Error: ${e.message}")
                 e.printStackTrace()
             }
         }

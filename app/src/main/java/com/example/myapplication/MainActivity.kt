@@ -15,8 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -25,13 +23,11 @@ import com.example.myapplication.ui.*
 import com.example.myapplication.viewmodel.CheckInViewModel
 import com.example.myapplication.data.UserSession
 
-// --- 1. Navigation Items (FIXED ICONS) ---
+// --- NAVIGATION ITEMS ---
 sealed class BottomNavItem(val route: String, val title: String, val icon: ImageVector) {
     object Home : BottomNavItem("home", "Home", Icons.Default.Home)
     object CheckIn : BottomNavItem("checkin_wizard", "Check-in", Icons.Default.CheckCircle)
-    // Changed Spa -> Face (Standard Icon)
     object Guidance : BottomNavItem("guidance", "Guidance", Icons.Default.Face)
-    // Changed BarChart -> DateRange (Standard Icon)
     object Insights : BottomNavItem("insights", "Insights", Icons.Default.DateRange)
     object Profile : BottomNavItem("profile", "Profile", Icons.Default.Person)
 }
@@ -39,14 +35,13 @@ sealed class BottomNavItem(val route: String, val title: String, val icon: Image
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Initialize Session Manager
         UserSession.init(applicationContext)
 
         setContent {
             val navController = rememberNavController()
+            // Shared ViewModel
             val viewModel: CheckInViewModel = viewModel()
 
-            // Define Bottom Navigation Items
             val items = listOf(
                 BottomNavItem.Home,
                 BottomNavItem.CheckIn,
@@ -55,7 +50,6 @@ class MainActivity : ComponentActivity() {
                 BottomNavItem.Profile
             )
 
-            // Logic to show/hide bottom bar
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = navBackStackEntry?.destination?.route
             val showBottomBar = items.any { it.route == currentRoute }
@@ -69,24 +63,18 @@ class MainActivity : ComponentActivity() {
             ) { innerPadding ->
                 NavHost(
                     navController = navController,
-                    startDestination = "splash", // Always start at Splash for Auto-Login check
+                    startDestination = "splash",
                     modifier = Modifier.padding(innerPadding)
                 ) {
-                    // --- ONBOARDING & AUTHENTICATION ---
-
-                    // 1. UPDATED SPLASH LOGIC (Auto-Login)
+                    // --- AUTHENTICATION ---
                     composable("splash") {
                         SplashScreen { nextRoute ->
-                            navController.navigate(nextRoute) {
-                                popUpTo("splash") { inclusive = true }
-                            }
+                            navController.navigate(nextRoute) { popUpTo("splash") { inclusive = true } }
                         }
                     }
-
                     composable("welcome") { WelcomeScreen { navController.navigate("wellness") } }
                     composable("wellness") { WellnessScreen { navController.navigate("features") } }
                     composable("features") { FeatureScreen { navController.navigate("login") } }
-
                     composable("login") {
                         LoginScreen(
                             onLoginSuccess = { navController.navigate(BottomNavItem.Home.route) { popUpTo("login") { inclusive = true } } },
@@ -94,39 +82,17 @@ class MainActivity : ComponentActivity() {
                             onForgotPasswordClick = { navController.navigate("forgot_password") }
                         )
                     }
-
-                    // 2. UPDATED SIGNUP LOGIC (Named Arguments)
                     composable("signup") {
-                        SignUpScreen(
-                            onSignUpSuccess = { navController.navigate("login") },
-                            onLoginClick = { navController.navigate("login") }
-                        )
+                        SignUpScreen(onSignUpSuccess = { navController.navigate("login") }, onLoginClick = { navController.navigate("login") })
                     }
+                    composable("forgot_password") { ForgotPasswordScreen({ navController.navigate("verify_otp") }, { navController.navigate("login") }) }
+                    composable("verify_otp") { VerifyOtpScreen({ navController.navigate("reset_password") }, { navController.popBackStack() }) }
+                    composable("reset_password") { ResetPasswordScreen({ navController.navigate("login") }, { navController.navigate("login") }) }
 
-                    composable("forgot_password") {
-                        ForgotPasswordScreen(
-                            onSendCodeClick = { navController.navigate("verify_otp") },
-                            onBackClick = { navController.navigate("login") }
-                        )
-                    }
-
-                    composable("verify_otp") {
-                        VerifyOtpScreen(
-                            onVerifyClick = { navController.navigate("reset_password") },
-                            onCloseClick = { navController.popBackStack() }
-                        )
-                    }
-
-                    composable("reset_password") {
-                        ResetPasswordScreen(
-                            onResetClick = { navController.navigate("login") },
-                            onBackClick = { navController.navigate("login") }
-                        )
-                    }
-
-                    // --- HOME TAB ---
+                    // --- HOME ---
                     composable(BottomNavItem.Home.route) {
                         HomeScreen(
+                            viewModel = viewModel,
                             onStartCheckIn = { navController.navigate(BottomNavItem.CheckIn.route) },
                             onDoshaClick = { type -> navController.navigate("dosha_detail/$type") },
                             onNotificationClick = { navController.navigate("notifications") },
@@ -134,87 +100,52 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // --- CHECK-IN FLOW ---
+                    // --- CHECK-IN ---
                     composable(BottomNavItem.CheckIn.route) {
-                        DailyCheckInScreen(
-                            viewModel = viewModel,
-                            onNavigateToSummary = {
-                                navController.navigate("checkin_summary")
-                            }
-                        )
+                        DailyCheckInScreen(viewModel = viewModel, onNavigateToSummary = { navController.navigate("checkin_summary") })
                     }
                     composable("checkin_summary") {
-                        CheckInSummaryScreen(
-                            viewModel,
-                            onBack = { navController.popBackStack() },
-                            onConfirm = {
-                                viewModel.submitData()
-                                navController.navigate("checkin_success")
-                            }
-                        )
+                        CheckInSummaryScreen(viewModel, onBack = { navController.popBackStack() }, onConfirm = { viewModel.submitData(); navController.navigate("checkin_success") })
                     }
-
-                    // 3. UPDATED SUCCESS SCREEN LOGIC (Wait for Data)
                     composable("checkin_success") {
-                        // Observe the prediction to know when it is ready
                         val prediction by viewModel.prediction.collectAsState()
-
-                        CheckInSuccessScreen(
-                            isReady = prediction != null, // Pass readiness state
-                            onGoToDashboard = {
-                                navController.navigate("result") {
-                                    // Remove success screen so they can't go back to it
-                                    popUpTo("checkin_success") { inclusive = true }
-                                }
-                            }
-                        )
+                        CheckInSuccessScreen(isReady = prediction != null, onGoToDashboard = { navController.navigate("result") { popUpTo("checkin_success") { inclusive = true } } })
                     }
-
                     composable("result") {
                         val prediction by viewModel.prediction.collectAsState()
                         if (prediction != null) {
-                            ResultScreen(
-                                prediction = prediction!!,
-                                onGoHome = {
-                                    navController.navigate(BottomNavItem.Home.route) {
-                                        popUpTo(BottomNavItem.Home.route) { inclusive = true }
-                                    }
-                                }
-                            )
+                            ResultScreen(prediction = prediction!!, onGoHome = { navController.navigate(BottomNavItem.Home.route) { popUpTo(BottomNavItem.Home.route) { inclusive = true } } })
                         } else {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Loading Result...") }
                         }
                     }
 
-                    // --- GUIDANCE TAB ---
+                    // --- GUIDANCE ---
                     composable(BottomNavItem.Guidance.route) {
                         val prediction by viewModel.prediction.collectAsState()
                         GuidanceScreen(prediction)
                     }
 
-                    // --- INSIGHTS TAB ---
+                    // --- INSIGHTS ---
                     composable(BottomNavItem.Insights.route) {
-                        InsightsScreen(
-                            onTrendClick = { type -> navController.navigate("dosha_trend/$type") },
-                            onHistoryClick = { navController.navigate("history") }
-                        )
+                        InsightsScreen(onTrendClick = { type -> navController.navigate("dosha_trend/$type") }, onHistoryClick = { navController.navigate("history") })
                     }
                     composable("dosha_trend/{type}") { backStackEntry ->
                         val type = backStackEntry.arguments?.getString("type") ?: "Vata"
-                        DoshaTrendScreen(
-                            doshaType = type,
-                            onBack = { navController.popBackStack() }
-                        )
+                        DoshaTrendScreen(doshaType = type, onBack = { navController.popBackStack() })
                     }
                     composable("history") {
                         TrendsHistoryScreen(onBack = { navController.popBackStack() })
                     }
 
-                    // --- PROFILE TAB ---
+                    // --- PROFILE (FIXED) ---
                     composable(BottomNavItem.Profile.route) {
+                        // 1. Get the prediction data from the ViewModel
                         val prediction by viewModel.prediction.collectAsState()
+
+                        // 2. Pass it to the ProfileScreen
                         ProfileScreen(
-                            prediction,
+                            prediction = prediction,
                             onEditProfile = { navController.navigate("edit_profile") },
                             onSettings = { navController.navigate("settings") },
                             onLogout = { navController.navigate("login") { popUpTo(0) } },
@@ -223,57 +154,26 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // --- SETTINGS HIERARCHY ---
-                    composable("settings") {
-                        SettingsScreen(
-                            onBack = { navController.popBackStack() },
-                            onSubscriptionClick = { navController.navigate("subscription") },
-                            onLanguageClick = { navController.navigate("language") },
-                            onPrivacyClick = { navController.navigate("privacy") },
-                            onHelpClick = { navController.navigate("help_center") },
-                            onTermsClick = { navController.navigate("terms_of_service") }
-                        )
-                    }
-
-                    composable("language") { LanguageScreen(onBack = { navController.popBackStack() }) }
-                    composable("privacy") { PrivacyScreen(onBack = { navController.popBackStack() }) }
-                    composable("help_center") { HelpCenterScreen(onBack = { navController.popBackStack() }) }
-                    composable("terms_of_service") { TermsOfServiceScreen(onBack = { navController.popBackStack() }) }
-
-                    composable("subscription") {
-                        SubscriptionScreen(onBack = { navController.popBackStack() }, onUpgradeClick = {})
-                    }
-
-                    composable("education") {
-                        EducationScreen(
-                            onBack = { navController.popBackStack() },
-                            onLearnClick = { type -> navController.navigate("dosha_learn/$type") }
-                        )
-                    }
-
-                    composable(
-                        route = "dosha_learn/{type}",
-                        arguments = listOf(navArgument("type") { type = NavType.StringType })
-                    ) { backStackEntry ->
-                        val type = backStackEntry.arguments?.getString("type") ?: "Vata"
-                        DoshaLearnScreen(doshaType = type, onBack = { navController.popBackStack() })
-                    }
-
+                    // --- EXTRAS ---
+                    composable("settings") { SettingsScreen({ navController.popBackStack() }, { navController.navigate("subscription") }, { navController.navigate("language") }, { navController.navigate("privacy") }, { navController.navigate("help_center") }, { navController.navigate("terms_of_service") }) }
+                    composable("language") { LanguageScreen { navController.popBackStack() } }
+                    composable("privacy") { PrivacyScreen { navController.popBackStack() } }
+                    composable("help_center") { HelpCenterScreen { navController.popBackStack() } }
+                    composable("terms_of_service") { TermsOfServiceScreen { navController.popBackStack() } }
+                    composable("subscription") { SubscriptionScreen({ navController.popBackStack() }, {}) }
+                    composable("education") { EducationScreen({ navController.popBackStack() }, { type -> navController.navigate("dosha_learn/$type") }) }
+                    composable("dosha_learn/{type}") { backStackEntry -> DoshaLearnScreen(backStackEntry.arguments?.getString("type") ?: "Vata", { navController.popBackStack() }) }
                     composable("edit_profile") { EditProfileScreen({ navController.popBackStack() }, { navController.popBackStack() }) }
                     composable("consistency") { ConsistencyScreen { navController.popBackStack() } }
                     composable("notifications") { NotificationsScreen { navController.popBackStack() } }
-
-                    composable("dosha_detail/{type}") { backStackEntry ->
-                        val type = backStackEntry.arguments?.getString("type") ?: "Vata"
-                        DoshaDetailScreen(type) { navController.popBackStack() }
-                    }
+                    composable("dosha_detail/{type}") { backStackEntry -> DoshaDetailScreen(backStackEntry.arguments?.getString("type") ?: "Vata") { navController.popBackStack() } }
                 }
             }
         }
     }
 }
 
-// --- 2. Bottom Navigation Bar Composable ---
+// --- BOTTOM BAR ---
 @Composable
 fun BottomNavigationBar(navController: androidx.navigation.NavController, items: List<BottomNavItem>) {
     NavigationBar(
@@ -290,9 +190,7 @@ fun BottomNavigationBar(navController: androidx.navigation.NavController, items:
                 selected = currentRoute == item.route,
                 onClick = {
                     navController.navigate(item.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
