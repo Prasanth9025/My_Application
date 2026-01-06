@@ -5,7 +5,8 @@ import com.google.gson.annotations.SerializedName
 data class DashboardResponse(
     val current: DoshaScore?,
     val history: List<DoshaScore>,
-    val trends: Trends
+    val trends: Trends,
+    val streak: Int = 0 // <--- ADD THIS FIELD
 )
 
 data class DoshaScore(

@@ -140,14 +140,21 @@ class MainActivity : ComponentActivity() {
 
                     // --- PROFILE ---
                     composable(BottomNavItem.Profile.route) {
-                        val prediction by viewModel.prediction.collectAsState()
                         ProfileScreen(
-                            prediction = prediction,
+                            checkInViewModel = viewModel, // Correctly passing ViewModel
                             onEditProfile = { navController.navigate("edit_profile") },
                             onSettings = { navController.navigate("settings") },
                             onLogout = { navController.navigate("login") { popUpTo(0) } },
                             onStreakClick = { navController.navigate("consistency") },
                             onAboutClick = { navController.navigate("education") }
+                        )
+                    }
+
+                    // --- CONSISTENCY (Moved here, DUPLICATE REMOVED) ---
+                    composable("consistency") {
+                        ConsistencyScreen(
+                            viewModel = viewModel, // Using shared ViewModel
+                            onBack = { navController.popBackStack() }
                         )
                     }
 
@@ -161,16 +168,18 @@ class MainActivity : ComponentActivity() {
                     composable("education") { EducationScreen({ navController.popBackStack() }, { type -> navController.navigate("dosha_learn/$type") }) }
                     composable("dosha_learn/{type}") { backStackEntry -> DoshaLearnScreen(backStackEntry.arguments?.getString("type") ?: "Vata", { navController.popBackStack() }) }
                     composable("edit_profile") { EditProfileScreen({ navController.popBackStack() }, { navController.popBackStack() }) }
-                    composable("consistency") { ConsistencyScreen { navController.popBackStack() } }
+
+                    // composable("consistency") { ... }  <--- DELETED DUPLICATE FROM HERE
+
                     composable("notifications") { NotificationsScreen { navController.popBackStack() } }
 
-                    // --- FIXED DOSHA DETAIL ROUTE ---
+                    // --- DOSHA DETAIL ---
                     composable("dosha_detail/{type}") { backStackEntry ->
                         val type = backStackEntry.arguments?.getString("type") ?: "Vata"
                         DoshaDetailScreen(
                             doshaType = type,
                             onBack = { navController.popBackStack() },
-                            viewModel = viewModel // Explicitly pass the shared ViewModel
+                            viewModel = viewModel
                         )
                     }
                 }
