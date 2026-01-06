@@ -4,11 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,28 +19,59 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.CheckInViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoshaTrendScreen(
-    doshaType: String,
-    onBack: () -> Unit
+    doshaType: String, // "Vata", "Pitta", or "Kapha"
+    onBack: () -> Unit,
+    viewModel: CheckInViewModel = viewModel()
 ) {
-    // Custom Data based on Dosha Type
-    val (score, change, changeColor, description) = when (doshaType) {
-        "Vata" -> Quad(60, "-5%", Color(0xFFE57373), "Your Vata score has decreased slightly over the past week. This could be due to changes in your diet or stress levels.")
-        "Pitta" -> Quad(40, "-5%", Color(0xFFE57373), "Your Pitta score is stable. Continue your cooling diet and avoid excessive heat to maintain this balance.")
-        "Kapha" -> Quad(50, "+2%", Color(0xFF4CAF50), "Your Kapha score has increased slightly. Consider increasing physical activity and lighter foods.")
-        else -> Quad(0, "0%", Color.Gray, "")
+    // 1. Observe Real Data
+    val dashboardData by viewModel.dashboardState.collectAsState()
+
+    // 2. Fetch Data if missing
+    LaunchedEffect(Unit) {
+        viewModel.fetchDashboard()
     }
 
-    // Graph Color (Greenish from screenshot)
-    val graphColor = Color(0xFF5D9C77)
+    // 3. Extract specific data based on 'doshaType'
+    val current = dashboardData?.current
+    val history = dashboardData?.history ?: emptyList()
+    val trends = dashboardData?.trends
+
+    // Dynamic Data Selection (Using CamelCase)
+    val (score, trendChange, graphScores, color) = when (doshaType) {
+        "Vata" -> QuadData(
+            score = current?.vataScore ?: 0,
+            change = trends?.vataChange ?: 0,
+            history = history.map { it.vataScore },
+            color = Color(0xFF5D8F78) // Greenish
+        )
+        "Pitta" -> QuadData(
+            score = current?.pittaScore ?: 0,
+            change = trends?.pittaChange ?: 0,
+            history = history.map { it.pittaScore },
+            color = Color(0xFFE57373) // Reddish
+        )
+        "Kapha" -> QuadData(
+            score = current?.kaphaScore ?: 0,
+            change = trends?.kaphaChange ?: 0,
+            history = history.map { it.kaphaScore },
+            color = Color(0xFF64B5F6) // Blueish
+        )
+        else -> QuadData(0, 0, emptyList(), Color.Gray)
+    }
+
+    val trendSign = if (trendChange > 0) "+" else ""
+    val trendColor = if (trendChange > 0) Color.Red else Color(0xFF4CAF50) // Green if decreasing (good), Red if increasing (aggravated)
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("$doshaType Dosha Trends", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = { Text("$doshaType Dosha Trends", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -54,81 +86,110 @@ fun DoshaTrendScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
                 .background(Color.White)
-                .padding(24.dp)
                 .verticalScroll(rememberScrollState())
+                .padding(24.dp)
         ) {
-            // 1. Score Section
-            Text("$doshaType Score", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            // Header
+            Text("$doshaType Score", fontSize = 16.sp, color = Color.Gray)
             Spacer(modifier = Modifier.height(8.dp))
+            Text("$score", fontSize = 48.sp, fontWeight = FontWeight.Bold)
 
-            Text("$score", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-
+            // Trend Text
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Last 7 Days ", fontSize = 14.sp, color = Color.Gray)
-                Text(change, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = changeColor)
+                Text("$trendSign$trendChange%", fontSize = 14.sp, color = trendColor, fontWeight = FontWeight.Bold)
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // 2. Wave Graph Section
-            Box(
+            // --- DYNAMIC GRAPH ---
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(200.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
             ) {
-                TrendWaveGraph(color = graphColor)
+                Box(modifier = Modifier.padding(16.dp)) {
+                    if (graphScores.isNotEmpty()) {
+                        TrendGraph(scores = graphScores, lineColor = color)
+                    } else {
+                        Text("No history data available", modifier = Modifier.align(Alignment.Center), color = Color.Gray)
+                    }
+                }
             }
 
-            // Days labels
+            // X-Axis Labels
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { day ->
-                    Text(day, fontSize = 12.sp, color = graphColor)
+                    Text(day, fontSize = 12.sp, color = Color.Gray)
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // 3. Insights Section
+            // Insights Section
             Text("Insights", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
+
+            val insightText = if (trendChange > 0) {
+                "Your $doshaType score has increased recently. This could be due to changes in diet, stress, or environment. Consider activities that pacify $doshaType."
+            } else {
+                "Your $doshaType score is stable or decreasing, which is a good sign of balance. Keep up your current routine!"
+            }
+
             Text(
-                text = description,
-                fontSize = 16.sp,
+                text = insightText,
+                fontSize = 14.sp,
                 color = Color.DarkGray,
-                lineHeight = 24.sp
+                lineHeight = 20.sp
             )
         }
     }
 }
 
-// Helper Data Class
-data class Quad(val score: Int, val change: String, val color: Color, val desc: String)
+// Helper Data Class for clean code
+data class QuadData(
+    val score: Int,
+    val change: Int,
+    val history: List<Int>,
+    val color: Color
+)
 
-// Custom Canvas to draw the wave from your screenshot
 @Composable
-fun TrendWaveGraph(color: Color) {
+fun TrendGraph(scores: List<Int>, lineColor: Color) {
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val width = size.width
+        if (scores.isEmpty()) return@Canvas
+
+        val maxScore = 100f
+        val widthPerPoint = size.width / (scores.size - 1).coerceAtLeast(1)
         val height = size.height
+        val path = Path()
 
-        val path = Path().apply {
-            // Starting point (Mon)
-            moveTo(0f, height * 0.7f)
+        scores.forEachIndexed { index, score ->
+            val x = index * widthPerPoint
+            val y = height - ((score / maxScore) * height)
 
-            // Bezier curves to simulate the wave in your image
-            cubicTo(width * 0.1f, height * 0.3f, width * 0.2f, height * 0.3f, width * 0.3f, height * 0.6f)
-            cubicTo(width * 0.4f, height * 0.9f, width * 0.5f, height * 0.5f, width * 0.6f, height * 0.4f)
-            cubicTo(width * 0.7f, height * 0.3f, width * 0.8f, height * 0.8f, width * 0.9f, height * 0.2f)
-            lineTo(width, height * 0.3f) // End point (Sun)
+            if (index == 0) {
+                path.moveTo(x, y)
+            } else {
+                val prevX = (index - 1) * widthPerPoint
+                val prevScore = scores[index - 1]
+                val prevY = height - ((prevScore / maxScore) * height)
+
+                // Smooth Curve
+                path.cubicTo((prevX + x) / 2, prevY, (prevX + x) / 2, y, x, y)
+            }
         }
 
         drawPath(
             path = path,
-            color = color,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            color = lineColor,
+            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
         )
     }
 }

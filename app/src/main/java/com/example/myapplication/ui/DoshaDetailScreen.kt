@@ -8,10 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,20 +18,61 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.myapplication.viewmodel.CheckInViewModel
 
 // --- PRIVATE COLORS ---
 private val DetailWhite = Color(0xFFFFFFFF)
 private val DetailBlack = Color(0xFF000000)
 private val DetailGray = Color(0xFF757575)
-private val GraphGreen = Color(0xFF5D8F78) // The specific green from your screenshot
-private val NegativeRed = Color(0xFFEF5350)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DoshaDetailScreen(
     doshaType: String, // "Vata", "Pitta", or "Kapha"
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    viewModel: CheckInViewModel = viewModel() // Inject ViewModel
 ) {
+    // 1. Observe Real Data
+    val dashboardData by viewModel.dashboardState.collectAsState()
+
+    // 2. Fetch Data if missing
+    LaunchedEffect(Unit) {
+        viewModel.fetchDashboard()
+    }
+
+    // 3. Extract Data safely
+    val current = dashboardData?.current
+    val history = dashboardData?.history ?: emptyList()
+    val trends = dashboardData?.trends
+
+    // 4. Select Data Dynamically based on 'doshaType'
+    // This allows us to use one screen for all 3 Doshas
+    val (currentScore, trendChange, graphScores, color) = when (doshaType) {
+        "Vata" -> QuadDetailData(
+            score = current?.vataScore ?: 0,
+            change = trends?.vataChange ?: 0,
+            history = history.map { it.vataScore },
+            color = Color(0xFF5D8F78) // Greenish
+        )
+        "Pitta" -> QuadDetailData(
+            score = current?.pittaScore ?: 0,
+            change = trends?.pittaChange ?: 0,
+            history = history.map { it.pittaScore },
+            color = Color(0xFFE57373) // Reddish
+        )
+        "Kapha" -> QuadDetailData(
+            score = current?.kaphaScore ?: 0,
+            change = trends?.kaphaChange ?: 0,
+            history = history.map { it.kaphaScore },
+            color = Color(0xFF64B5F6) // Blueish
+        )
+        else -> QuadDetailData(0, 0, emptyList(), Color.Gray)
+    }
+
+    val trendSign = if (trendChange > 0) "+" else ""
+    val trendColor = if (trendChange > 0) Color.Red else Color(0xFF4CAF50)
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -61,24 +101,44 @@ fun DoshaDetailScreen(
 
                 // Dynamic Score
                 Text(
-                    text = getScore(doshaType),
+                    text = "$currentScore",
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     color = DetailBlack
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("Last 30 Days -5%", fontSize = 14.sp, color = NegativeRed, fontWeight = FontWeight.Medium)
+
+                // Dynamic Trend
+                Text(
+                    text = "Last 7 Days $trendSign$trendChange%",
+                    fontSize = 14.sp,
+                    color = trendColor,
+                    fontWeight = FontWeight.Medium
+                )
                 Spacer(Modifier.height(32.dp))
             }
 
-            // 2. Graph Section
+            // 2. Graph Section (Dynamic)
             item {
-                // The Wavy Line Chart
-                DetailWavyGraph(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
-                )
+                        .height(180.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
+                ) {
+                    Box(modifier = Modifier.padding(16.dp)) {
+                        if (graphScores.isNotEmpty()) {
+                            DetailTrendGraph(scores = graphScores, lineColor = color)
+                        } else {
+                            Text(
+                                "No history data available",
+                                modifier = Modifier.align(Alignment.Center),
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
 
                 // Days Labels
                 Row(
@@ -97,8 +157,16 @@ fun DoshaDetailScreen(
             item {
                 Text("Insights", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = DetailBlack)
                 Spacer(Modifier.height(16.dp))
+
+                // Dynamic Insight Text
+                val dynamicInsight = if (trendChange > 0) {
+                    "Your $doshaType score has increased recently. This could be due to changes in diet or stress. Consider activities that pacify $doshaType."
+                } else {
+                    "Your $doshaType score is stable or decreasing, which indicates good balance. Maintain your current routine."
+                }
+
                 Text(
-                    text = getInsightsText(doshaType),
+                    text = dynamicInsight,
                     fontSize = 15.sp,
                     color = Color(0xFF424242),
                     lineHeight = 24.sp
@@ -109,50 +177,51 @@ fun DoshaDetailScreen(
     }
 }
 
-// --- COMPONENTS ---
+// --- DATA HELPER ---
+data class QuadDetailData(
+    val score: Int,
+    val change: Int,
+    val history: List<Int>,
+    val color: Color
+)
 
+// --- DYNAMIC GRAPH COMPONENT ---
 @Composable
-private fun DetailWavyGraph(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
+private fun DetailTrendGraph(scores: List<Int>, lineColor: Color) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        if (scores.isEmpty()) return@Canvas
 
-        // Custom wavy path to match your design
-        val path = Path().apply {
-            moveTo(0f, height * 0.7f)
-            cubicTo(width * 0.05f, height * 0.5f, width * 0.1f, height * 0.5f, width * 0.15f, height * 0.6f)
-            cubicTo(width * 0.2f, height * 0.8f, width * 0.25f, height * 0.6f, width * 0.3f, height * 0.7f)
-            cubicTo(width * 0.35f, height * 0.8f, width * 0.4f, height * 0.7f, width * 0.45f, height * 0.65f)
-            cubicTo(width * 0.5f, height * 0.6f, width * 0.55f, height * 0.9f, width * 0.6f, height * 0.8f)
-            cubicTo(width * 0.65f, height * 0.5f, width * 0.7f, height * 0.3f, width * 0.75f, height * 0.6f)
-            cubicTo(width * 0.8f, height * 0.8f, width * 0.85f, height * 0.7f, width * 0.9f, height * 0.4f)
-            lineTo(width, height * 0.5f)
+        val maxScore = 100f
+        val widthPerPoint = size.width / (scores.size - 1).coerceAtLeast(1)
+        val height = size.height
+        val path = Path()
+
+        scores.forEachIndexed { index, score ->
+            // Map score (0-100) to height
+            val x = index * widthPerPoint
+            val y = height - ((score / maxScore) * height)
+
+            if (index == 0) {
+                path.moveTo(x, y)
+            } else {
+                // Smooth Curve
+                val prevX = (index - 1) * widthPerPoint
+                val prevScore = scores[index - 1]
+                val prevY = height - ((prevScore / maxScore) * height)
+
+                val conX1 = (prevX + x) / 2
+                val conY1 = prevY
+                val conX2 = (prevX + x) / 2
+                val conY2 = y
+
+                path.cubicTo(conX1, conY1, conX2, conY2, x, y)
+            }
         }
 
         drawPath(
             path = path,
-            color = GraphGreen,
-            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            color = lineColor,
+            style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
         )
-    }
-}
-
-// --- DATA HELPERS ---
-
-private fun getScore(dosha: String): String {
-    return when(dosha) {
-        "Vata" -> "60"
-        "Pitta" -> "40"
-        "Kapha" -> "50"
-        else -> "0"
-    }
-}
-
-private fun getInsightsText(dosha: String): String {
-    return when(dosha) {
-        "Vata" -> "Your Vata score has decreased slightly over the past week. This could be due to changes in your diet or stress levels. Consider reviewing your recent activities and meals to identify potential factors."
-        "Pitta" -> "Your Pitta score shows stability but has mild fluctuations. Ensure you are staying cool and avoiding overly spicy foods to maintain this balance."
-        "Kapha" -> "Your Kapha score is rising. This suggests a need for more physical activity and lighter, warmer foods to counteract the heaviness."
-        else -> "Your score is stable."
     }
 }

@@ -132,18 +132,15 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("dosha_trend/{type}") { backStackEntry ->
                         val type = backStackEntry.arguments?.getString("type") ?: "Vata"
-                        DoshaTrendScreen(doshaType = type, onBack = { navController.popBackStack() })
+                        DoshaTrendScreen(doshaType = type, onBack = { navController.popBackStack() }, viewModel = viewModel)
                     }
                     composable("history") {
                         TrendsHistoryScreen(onBack = { navController.popBackStack() })
                     }
 
-                    // --- PROFILE (FIXED) ---
+                    // --- PROFILE ---
                     composable(BottomNavItem.Profile.route) {
-                        // 1. Get the prediction data from the ViewModel
                         val prediction by viewModel.prediction.collectAsState()
-
-                        // 2. Pass it to the ProfileScreen
                         ProfileScreen(
                             prediction = prediction,
                             onEditProfile = { navController.navigate("edit_profile") },
@@ -166,7 +163,16 @@ class MainActivity : ComponentActivity() {
                     composable("edit_profile") { EditProfileScreen({ navController.popBackStack() }, { navController.popBackStack() }) }
                     composable("consistency") { ConsistencyScreen { navController.popBackStack() } }
                     composable("notifications") { NotificationsScreen { navController.popBackStack() } }
-                    composable("dosha_detail/{type}") { backStackEntry -> DoshaDetailScreen(backStackEntry.arguments?.getString("type") ?: "Vata") { navController.popBackStack() } }
+
+                    // --- FIXED DOSHA DETAIL ROUTE ---
+                    composable("dosha_detail/{type}") { backStackEntry ->
+                        val type = backStackEntry.arguments?.getString("type") ?: "Vata"
+                        DoshaDetailScreen(
+                            doshaType = type,
+                            onBack = { navController.popBackStack() },
+                            viewModel = viewModel // Explicitly pass the shared ViewModel
+                        )
+                    }
                 }
             }
         }

@@ -57,24 +57,23 @@ fun HomeScreen(
     val history = dashboardData?.history ?: emptyList()
     val trends = dashboardData?.trends
 
-    // --- FIX 1: Use CamelCase (vataScore) ---
+    // --- FIX 1: Use CamelCase (vataScore) for calculations ---
     val balanceScore = if (current != null) {
         ((current.vataScore + current.pittaScore + current.kaphaScore) / 3).toString()
     } else "--"
 
-    // --- FIX 2: Use CamelCase ---
+    // --- FIX 2: Use CamelCase for Display ---
     val vataScore = current?.vataScore?.toString() ?: "--"
     val pittaScore = current?.pittaScore?.toString() ?: "--"
     val kaphaScore = current?.kaphaScore?.toString() ?: "--"
 
-    // --- FIX 3: Use CamelCase in Map ---
+    // --- FIX 3: Graph Data (Visualizing Vata History as primary metric) ---
     val graphScores = history.map { it.vataScore }
 
-    // --- FIX 4: Use CamelCase for Trends ---
+    // --- FIX 4: Trend Text Logic ---
     val vataChange = trends?.vataChange ?: 0
-
     val trendSign = if (vataChange > 0) "+" else ""
-    val trendText = "Next 7 Days $trendSign$vataChange%"
+    val trendText = "Next 7 Days $trendSign$vataChange% (Vata)"
     val trendColor = if (vataChange > 0) Color.Red else HomePrimaryGreen
 
     Scaffold(
@@ -113,7 +112,7 @@ fun HomeScreen(
         ) {
             // 1. Greeting & Score
             item {
-                val userName = "Anya"
+                val userName = "Anya" // Placeholder name
                 Text("Good Morning, $userName", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = HomeTextBlack)
                 Spacer(Modifier.height(16.dp))
 
@@ -132,7 +131,7 @@ fun HomeScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.75f)
+                            .fillMaxWidth(0.75f) // Static visual for now
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(3.dp))
                             .background(HomePrimaryGreen)
@@ -141,7 +140,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(24.dp))
             }
 
-            // 2. Dosha Cards (REAL DATA)
+            // 2. Dosha Cards (REAL DATA CONNECTED)
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -325,12 +324,14 @@ private fun HomeLineChart(
         val path = Path()
 
         scores.forEachIndexed { index, score ->
+            // Map Score (0-100) to Height (Bottom to Top)
             val x = index * widthPerPoint
             val y = height - ((score / maxScore) * height)
 
             if (index == 0) {
                 path.moveTo(x, y)
             } else {
+                // Smooth Curve
                 val prevX = (index - 1) * widthPerPoint
                 val prevScore = scores[index - 1]
                 val prevY = height - ((prevScore / maxScore) * height)
